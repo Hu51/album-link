@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export function AdminLoginForm() {
+export function AdminLoginForm({ appName }: { appName: string }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +44,7 @@ export function AdminLoginForm() {
       <Card className="w-full max-w-md border-stone-300/80 bg-white/90 shadow-none">
         <CardHeader>
           <p className="text-xs uppercase tracking-[0.25em] text-stone-500">
-            Album Link
+            {appName}
           </p>
           <CardTitle className="font-heading text-3xl">Admin sign in</CardTitle>
           <CardDescription>

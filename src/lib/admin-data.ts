@@ -3,6 +3,10 @@ import { APP_URL, type DownloadResolution } from "./config";
 import { getDb, type EventFolderRow, type GroupRow, type PersonRow } from "./db";
 import { createShareToken, hashToken } from "./tokens";
 
+export function shareUrlFor(token: string | null): string | null {
+  return token ? `${APP_URL}/share/${token}` : null;
+}
+
 export function listGroups(): GroupRow[] {
   return getDb()
     .prepare(`SELECT * FROM groups ORDER BY name ASC`)
@@ -44,10 +48,17 @@ export function createGroup(name: string, maxDownloadResolution: DownloadResolut
   const token = createShareToken();
   getDb()
     .prepare(
-      `INSERT INTO groups (id, name, token_hash, max_download_resolution, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO groups (id, name, token_hash, share_token, max_download_resolution, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, name.trim(), hashToken(token), maxDownloadResolution, new Date().toISOString());
+    .run(
+      id,
+      name.trim(),
+      hashToken(token),
+      token,
+      maxDownloadResolution,
+      new Date().toISOString(),
+    );
   return { id, token, shareUrl: `${APP_URL}/share/${token}` };
 }
 
@@ -65,8 +76,8 @@ export function updateGroup(
 export function rollGroupToken(id: string) {
   const token = createShareToken();
   getDb()
-    .prepare(`UPDATE groups SET token_hash = ? WHERE id = ?`)
-    .run(hashToken(token), id);
+    .prepare(`UPDATE groups SET token_hash = ?, share_token = ? WHERE id = ?`)
+    .run(hashToken(token), token, id);
   return { token, shareUrl: `${APP_URL}/share/${token}` };
 }
 
@@ -99,12 +110,13 @@ export function createPerson(
   const db = getDb();
   const tx = db.transaction(() => {
     db.prepare(
-      `INSERT INTO people (id, name, token_hash, max_download_resolution, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO people (id, name, token_hash, share_token, max_download_resolution, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       name.trim(),
       hashToken(token),
+      token,
       maxDownloadResolution,
       new Date().toISOString(),
     );
@@ -146,8 +158,8 @@ export function updatePerson(
 export function rollPersonToken(id: string) {
   const token = createShareToken();
   getDb()
-    .prepare(`UPDATE people SET token_hash = ? WHERE id = ?`)
-    .run(hashToken(token), id);
+    .prepare(`UPDATE people SET token_hash = ?, share_token = ? WHERE id = ?`)
+    .run(hashToken(token), token, id);
   return { token, shareUrl: `${APP_URL}/share/${token}` };
 }
 

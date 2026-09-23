@@ -12,6 +12,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
       APP_URL: ${APP_URL:-http://127.0.0.1:43123}
+      APP_NAME: "${APP_NAME:-album link}"
     volumes:
       # Your NAS photo library — read-only, never written by the app
       - ${PHOTOS_HOST_PATH:-./fixtures/photos}:/photos:ro

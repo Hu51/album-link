@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type EventFolder = {
@@ -17,6 +18,7 @@ type Photo = {
 };
 
 type Props = {
+  appName: string;
   token: string;
   shareName: string;
   kind: "group" | "person";
@@ -25,6 +27,7 @@ type Props = {
 };
 
 export function ShareGallery({
+  appName,
   token,
   shareName,
   kind,
@@ -88,6 +91,15 @@ export function ShareGallery({
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxIndex, photos.length]);
 
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [lightboxIndex]);
+
   const thumbUrl = (path: string) =>
     `/api/media/thumb?path=${encodeURIComponent(path)}&token=${encodeURIComponent(token)}`;
   const fileUrl = (path: string, download = false) =>
@@ -99,7 +111,7 @@ export function ShareGallery({
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-[#c4a574]">
-              Album Link
+              {appName}
             </p>
             <h1 className="mt-2 font-heading text-3xl tracking-tight sm:text-4xl">
               {shareName}
@@ -119,7 +131,7 @@ export function ShareGallery({
                 setLightboxIndex(null);
               }}
             >
-              All events
+              All albums
             </Button>
           )}
         </div>
@@ -216,53 +228,55 @@ export function ShareGallery({
 
       {lightboxIndex !== null && photos[lightboxIndex] && (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-black/95"
+          className="fixed inset-0 z-50 flex h-dvh max-h-dvh flex-col overflow-hidden bg-black"
           role="dialog"
           aria-modal="true"
         >
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <p className="truncate text-sm text-[#d8cfc1]">
               {photos[lightboxIndex].filename}
             </p>
             <div className="flex shrink-0 gap-2">
               <a
                 href={fileUrl(photos[lightboxIndex].relative_path, true)}
-                className="inline-flex h-8 items-center rounded-lg border border-white/20 px-2.5 text-sm hover:bg-white/10"
+                className="inline-flex h-8 items-center rounded-lg border border-white/20 px-2.5 text-sm hover:bg-white hover:text-black"
               >
                 Download
               </a>
               <Button
                 variant="outline"
-                className="border-white/20"
+                className="border-white/20 bg-transparent text-white/70 hover:bg-white hover:text-black"
                 onClick={() => setLightboxIndex(null)}
               >
                 Close
               </Button>
             </div>
           </div>
-          <div className="relative flex flex-1 items-center justify-center p-4">
+          <div className="relative min-h-0 flex-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={fileUrl(photos[lightboxIndex].relative_path)}
               alt={photos[lightboxIndex].filename}
-              className="max-h-full max-w-full object-contain"
+              className="absolute inset-0 m-auto h-full w-full object-contain px-16 py-3 sm:px-24"
             />
             {lightboxIndex > 0 && (
               <button
                 type="button"
-                className="absolute left-3 rounded-full bg-white/10 px-3 py-2 text-lg hover:bg-white/20"
+                aria-label="Previous photo"
+                className="absolute top-1/2 left-3 z-10 flex h-[2.1rem] w-[2.1rem] -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white/70 opacity-60 hover:text-white shadow-lg hover:opacity-100 sm:left-5 sm:h-[2.4rem] sm:w-[2.4rem]"
                 onClick={() => setLightboxIndex((i) => (i === null ? null : i - 1))}
               >
-                ‹
+                <ChevronLeft className="h-[1.2rem] w-[1.2rem] sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={4} />
               </button>
             )}
             {lightboxIndex < photos.length - 1 && (
               <button
                 type="button"
-                className="absolute right-3 rounded-full bg-white/10 px-3 py-2 text-lg hover:bg-white/20"
+                aria-label="Next photo"
+                className="absolute top-1/2 right-3 z-10 flex h-[2.1rem] w-[2.1rem] -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white/70 opacity-60 hover:text-white shadow-lg hover:opacity-100 sm:right-5 sm:h-[2.4rem] sm:w-[2.4rem]"
                 onClick={() => setLightboxIndex((i) => (i === null ? null : i + 1))}
               >
-                ›
+                <ChevronRight className="h-[1.2rem] w-[1.2rem] sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={4} />
               </button>
             )}
           </div>

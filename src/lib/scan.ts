@@ -15,6 +15,10 @@ function isImageFile(filename: string): boolean {
   return IMAGE_EXTENSIONS.has(path.extname(filename).toLowerCase());
 }
 
+function childRelative(parentRel: string, name: string): string {
+  return parentRel ? toPosix(path.join(parentRel, name)) : name;
+}
+
 export function scanPhotos(): ScanResult {
   const db = getDb();
   const now = new Date().toISOString();
@@ -51,48 +55,42 @@ export function scanPhotos(): ScanResult {
     fs.mkdirSync(PHOTOS_ROOT, { recursive: true });
   }
 
-  const years = fs
-    .readdirSync(PHOTOS_ROOT, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name)
-    .sort();
+  // First path segment is only a group label (stored as year).
+  // Any directory that contains images is an event, at any depth.
+  function indexDirectory(absDir: string, relDir: string) {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(absDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
 
-  for (const year of years) {
-    const yearPath = path.join(PHOTOS_ROOT, year);
-    const events = fs
-      .readdirSync(yearPath, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
+    const filenames = entries
+      .filter((entry) => entry.isFile() && isImageFile(entry.name))
+      .map((entry) => entry.name)
       .sort();
 
-    for (const eventName of events) {
-      const eventAbs = path.join(yearPath, eventName);
-      const eventRel = toPosix(path.join(year, eventName));
+    if (filenames.length > 0) {
+      const segments = relDir ? relDir.split("/") : [];
+      const group = segments[0] || path.basename(PHOTOS_ROOT) || "photos";
+      const name = segments.at(-1) || group;
+      let coverPath: string | null = null;
 
-      // Event row must exist before photos (FK).
       upsertEvent.run({
-        relative_path: eventRel,
-        year,
-        name: eventName,
+        relative_path: relDir,
+        year: group,
+        name,
         photo_count: 0,
         cover_path: null,
         last_seen_at: now,
       });
 
-      const files = fs
-        .readdirSync(eventAbs, { withFileTypes: true })
-        .filter((d) => d.isFile() && isImageFile(d.name))
-        .map((d) => d.name)
-        .sort();
-
-      let coverPath: string | null = null;
-      for (const filename of files) {
-        const photoRel = toPosix(path.join(year, eventName, filename));
-        const abs = path.join(eventAbs, filename);
-        const stat = fs.statSync(abs);
+      for (const filename of filenames) {
+        const photoRel = childRelative(relDir, filename);
+        const stat = fs.statSync(path.join(absDir, filename));
         upsertPhoto.run({
           relative_path: photoRel,
-          event_path: eventRel,
+          event_path: relDir,
           filename,
           mtime_ms: Math.floor(stat.mtimeMs),
           size_bytes: stat.size,
@@ -104,43 +102,63 @@ export function scanPhotos(): ScanResult {
       }
 
       upsertEvent.run({
-        relative_path: eventRel,
-        year,
-        name: eventName,
-        photo_count: files.length,
+        relative_path: relDir,
+        year: group,
+        name,
+        photo_count: filenames.length,
         cover_path: coverPath,
         last_seen_at: now,
       });
-      seenEvents.add(eventRel);
+      seenEvents.add(relDir);
       eventsFound += 1;
+    }
+
+    const directories = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+
+    for (const directory of directories) {
+      indexDirectory(
+        path.join(absDir, directory),
+        childRelative(relDir, directory),
+      );
     }
   }
 
   const markEventsMissing = db.prepare(
     `UPDATE event_folders SET missing = 1 WHERE relative_path = ?`,
   );
-  const markPhotosMissing = db.prepare(`UPDATE photos SET missing = 1 WHERE relative_path = ?`);
+  const markPhotosMissing = db.prepare(
+    `UPDATE photos SET missing = 1 WHERE relative_path = ?`,
+  );
 
   let eventsMissing = 0;
   let photosMissing = 0;
 
-  for (const row of db
-    .prepare(`SELECT relative_path FROM event_folders WHERE missing = 0`)
-    .all() as { relative_path: string }[]) {
-    if (!seenEvents.has(row.relative_path)) {
-      markEventsMissing.run(row.relative_path);
-      eventsMissing += 1;
-    }
-  }
+  const apply = db.transaction(() => {
+    indexDirectory(PHOTOS_ROOT, "");
 
-  for (const row of db
-    .prepare(`SELECT relative_path FROM photos WHERE missing = 0`)
-    .all() as { relative_path: string }[]) {
-    if (!seenPhotos.has(row.relative_path)) {
-      markPhotosMissing.run(row.relative_path);
-      photosMissing += 1;
+    for (const row of db
+      .prepare(`SELECT relative_path FROM event_folders WHERE missing = 0`)
+      .all() as { relative_path: string }[]) {
+      if (!seenEvents.has(row.relative_path)) {
+        markEventsMissing.run(row.relative_path);
+        eventsMissing += 1;
+      }
     }
-  }
+
+    for (const row of db
+      .prepare(`SELECT relative_path FROM photos WHERE missing = 0`)
+      .all() as { relative_path: string }[]) {
+      if (!seenPhotos.has(row.relative_path)) {
+        markPhotosMissing.run(row.relative_path);
+        photosMissing += 1;
+      }
+    }
+  });
+
+  apply();
 
   return { eventsFound, photosFound, eventsMissing, photosMissing };
 }

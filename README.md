@@ -15,7 +15,7 @@ Photos/
     └── 2025-02-02_event_3/
 ```
 
-Year folders contain event folders. Event folders contain images. Nothing is imported or copied.
+The first folder level is only a group label. Any folder that contains images is indexed, at any depth. Nothing is imported or copied.
 
 ## Quick start (local)
 
@@ -69,6 +69,7 @@ Download caps (longest edge, never upscaled):
 | `ADMIN_PASSWORD` | `changeme` | Admin login |
 | `SESSION_SECRET` | (dev default) | Cookie signing |
 | `APP_URL` | `http://127.0.0.1:43123` | Used when minting share URLs |
+| `APP_NAME` | `album link` | Name shown in the app |
 | `PORT` | `43123` (dev script) | Listen port |
 
 ## Scripts

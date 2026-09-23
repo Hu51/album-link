@@ -8,6 +8,7 @@ import {
   listGroups,
   rollGroupToken,
   setGroupEvents,
+  shareUrlFor,
   updateGroup,
 } from "@/lib/admin-data";
 
@@ -18,7 +19,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const groups = listGroups().map((g) => ({
-    ...g,
+    id: g.id,
+    name: g.name,
+    max_download_resolution: g.max_download_resolution,
+    shareUrl: shareUrlFor(g.share_token),
     eventPaths: listGroupEventPaths(g.id),
   }));
   return NextResponse.json({ groups });

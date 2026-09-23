@@ -1,17 +1,34 @@
-import { isAdminAuthenticated } from "@/lib/auth";
-import { AdminDashboard } from "@/components/admin-dashboard";
-import { AdminLoginForm } from "@/components/admin-login-form";
+import Link from "next/link";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
-export const dynamic = "force-dynamic";
-
-export default async function AdminPage() {
-  const authed = await isAdminAuthenticated();
-  if (!authed) {
-    return <AdminLoginForm />;
-  }
+export default function AdminHomePage() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#f7f3eb_0%,_#ebe4d8_50%,_#ddd4c4_100%)]">
-      <AdminDashboard />
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Link href="/admin/groups">
+        <Card className="h-full transition hover:border-stone-400">
+          <CardHeader>
+            <CardTitle>Groups</CardTitle>
+            <CardDescription>
+              Share links for a chat, and the albums each group can see.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </Link>
+      <Link href="/admin/people">
+        <Card className="h-full transition hover:border-stone-400">
+          <CardHeader>
+            <CardTitle>People</CardTitle>
+            <CardDescription>
+              Personal links, each with their own groups and download cap.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </Link>
     </div>
   );
 }

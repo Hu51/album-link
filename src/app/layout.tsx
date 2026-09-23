@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
+import { APP_NAME } from "@/lib/config";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -13,7 +14,7 @@ const sourceSans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Album Link",
+  title: APP_NAME,
   description:
     "Share selected photo folders from your NAS with revocable group and personal links.",
 };

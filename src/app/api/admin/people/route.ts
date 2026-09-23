@@ -6,6 +6,7 @@ import {
   deletePerson,
   listPeople,
   rollPersonToken,
+  shareUrlFor,
   updatePerson,
 } from "@/lib/admin-data";
 
@@ -16,7 +17,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const people = listPeople().map((p) => ({
-    ...p,
+    id: p.id,
+    name: p.name,
+    max_download_resolution: p.max_download_resolution,
+    shareUrl: shareUrlFor(p.share_token),
     groupIds: p.group_ids ? p.group_ids.split(",") : [],
   }));
   return NextResponse.json({ people });

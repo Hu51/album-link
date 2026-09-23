@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { APP_NAME } from "@/lib/config";
 
 export default function HomePage() {
   return (
@@ -12,7 +13,7 @@ export default function HomePage() {
       />
       <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-16">
         <p className="text-xs uppercase tracking-[0.35em] text-[#c4a574]">
-          Album Link
+          {APP_NAME}
         </p>
         <h1 className="mt-4 font-heading text-5xl leading-tight tracking-tight sm:text-6xl">
           Share folders.
@@ -20,8 +21,9 @@ export default function HomePage() {
           Keep the NAS private.
         </h1>
         <p className="mt-5 max-w-xl text-lg text-[#b7aea0]">
-          Point this app at your year/event photo tree. Guests open a token link
-          and only see the albums you assigned — no UGOS login, no copied library.
+          Point this app at your photo folders. The first level groups albums, and
+          any folder with images is indexed. Guests open a token link and only see
+          the albums you assigned — no UGOS login, no copied library.
         </p>
         <div className="mt-10 flex flex-wrap gap-3">
           <Link

@@ -6,6 +6,7 @@ export type GroupRow = {
   id: string;
   name: string;
   token_hash: string;
+  share_token: string | null;
   max_download_resolution: DownloadResolution;
   created_at: string;
 };
@@ -14,6 +15,7 @@ export type PersonRow = {
   id: string;
   name: string;
   token_hash: string;
+  share_token: string | null;
   max_download_resolution: DownloadResolution;
   created_at: string;
 };
@@ -68,6 +70,7 @@ function migrate(db: Database.Database) {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       token_hash TEXT NOT NULL UNIQUE,
+      share_token TEXT,
       max_download_resolution TEXT NOT NULL DEFAULT 'orig'
         CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
       created_at TEXT NOT NULL
@@ -77,6 +80,7 @@ function migrate(db: Database.Database) {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       token_hash TEXT NOT NULL UNIQUE,
+      share_token TEXT,
       max_download_resolution TEXT NOT NULL DEFAULT 'orig'
         CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
       created_at TEXT NOT NULL
@@ -162,6 +166,7 @@ function migrate(db: Database.Database) {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         token_hash TEXT NOT NULL UNIQUE,
+        share_token TEXT,
         max_download_resolution TEXT NOT NULL DEFAULT 'orig'
           CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
         created_at TEXT NOT NULL
@@ -170,6 +175,7 @@ function migrate(db: Database.Database) {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         token_hash TEXT NOT NULL UNIQUE,
+        share_token TEXT,
         max_download_resolution TEXT NOT NULL DEFAULT 'orig'
           CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
         created_at TEXT NOT NULL
@@ -225,15 +231,30 @@ function migrate(db: Database.Database) {
     }
     db.exec(`PRAGMA foreign_keys = ON;`);
   }
+
+  ensureShareToken(db);
+}
+
+function ensureShareToken(db: Database.Database) {
+  for (const table of ["groups", "people"] as const) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as {
+      name: string;
+    }[];
+    if (!columns.some((column) => column.name === "share_token")) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN share_token TEXT`);
+    }
+  }
 }
 
 export function getDb(): Database.Database {
   if (globalThis.__albumLinkDb) {
+    ensureShareToken(globalThis.__albumLinkDb);
     return globalThis.__albumLinkDb;
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const db = new Database(DB_PATH);
   migrate(db);
   globalThis.__albumLinkDb = db;
+  ensureShareToken(db);
   return db;
 }
