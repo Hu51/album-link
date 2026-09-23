@@ -24,12 +24,12 @@ export const SESSION_SECRET =
 
 export const APP_URL = process.env.APP_URL || "http://127.0.0.1:43123";
 
-export type DownloadResolution = "full" | "2k" | "hd";
+export type DownloadResolution = "orig" | "2000px" | "1000px";
 
 export const RESOLUTION_MAX_EDGE: Record<DownloadResolution, number | null> = {
-  full: null,
-  "2k": 2560,
-  hd: 1920,
+  orig: null,
+  "2000px": 2000,
+  "1000px": 1000,
 };
 
 export const IMAGE_EXTENSIONS = new Set([

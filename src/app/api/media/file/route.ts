@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing path" }, { status: 400 });
   }
 
-  let resolution: DownloadResolution = "full";
+  let resolution: DownloadResolution = "orig";
   const admin = await isAdminAuthenticated();
 
   if (!admin) {

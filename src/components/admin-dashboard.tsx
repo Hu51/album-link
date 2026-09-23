@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-type Resolution = "full" | "2k" | "hd";
+type Resolution = "orig" | "2000px" | "1000px";
 
 type Group = {
   id: string;
@@ -50,9 +50,9 @@ function ResolutionSelect({
       value={value}
       onChange={(e) => onChange(e.target.value as Resolution)}
     >
-      <option value="full">Full (original)</option>
-      <option value="2k">2K (≤ 2560px)</option>
-      <option value="hd">HD (≤ 1920px)</option>
+      <option value="orig">orig (original file)</option>
+      <option value="2000px">2000px</option>
+      <option value="1000px">1000px</option>
     </select>
   );
 }
@@ -66,9 +66,9 @@ export function AdminDashboard() {
   const [lastToken, setLastToken] = useState<string | null>(null);
 
   const [groupName, setGroupName] = useState("");
-  const [groupRes, setGroupRes] = useState<Resolution>("full");
+  const [groupRes, setGroupRes] = useState<Resolution>("orig");
   const [personName, setPersonName] = useState("");
-  const [personRes, setPersonRes] = useState<Resolution>("full");
+  const [personRes, setPersonRes] = useState<Resolution>("orig");
   const [personGroups, setPersonGroups] = useState<string[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
 

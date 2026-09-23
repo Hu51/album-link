@@ -86,7 +86,7 @@ export async function getMediaFile(
   });
 
   const outName =
-    resolution === "full"
+    resolution === "orig"
       ? filename
       : `${path.parse(filename).name}-${resolution}.jpg`;
 

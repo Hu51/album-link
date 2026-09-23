@@ -49,15 +49,15 @@ Volumes:
 
 ## Sharing model
 
-- **Groups** (~Family, Friends): one secret URL for the chat; assign event folders with checkboxes; set max download to `full`, `2k`, or `hd`.
+- **Groups** (~Family, Friends): one secret URL for the chat; assign event folders with checkboxes; set max download to `orig`, `2000px`, or `1000px`.
 - **People**: member of one or more groups; personal URL shows the union of those events; own download cap.
 - **Roll token** kills the old link without changing assignments.
 
 Download caps (longest edge, never upscaled):
 
-- `hd` ≤ 1920px  
-- `2k` ≤ 2560px  
-- `full` original file  
+- `1000px` ≤ 1000px  
+- `2000px` ≤ 2000px  
+- `orig` original file  
 
 ## Environment
 

@@ -20,7 +20,7 @@ type Props = {
   token: string;
   shareName: string;
   kind: "group" | "person";
-  maxDownloadResolution: "full" | "2k" | "hd";
+  maxDownloadResolution: "orig" | "2000px" | "1000px";
   events: EventFolder[];
 };
 
@@ -106,7 +106,7 @@ export function ShareGallery({
             </h1>
             <p className="mt-2 text-sm text-[#b7aea0]">
               {kind === "group" ? "Group link" : "Personal link"} · downloads up
-              to {maxDownloadResolution.toUpperCase()}
+              to {maxDownloadResolution}
             </p>
           </div>
           {activeEvent && (

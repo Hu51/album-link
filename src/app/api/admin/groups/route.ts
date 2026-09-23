@@ -11,7 +11,7 @@ import {
   updateGroup,
 } from "@/lib/admin-data";
 
-const resolutionSchema = z.enum(["full", "2k", "hd"]);
+const resolutionSchema = z.enum(["orig", "2000px", "1000px"]);
 
 export async function GET() {
   if (!(await isAdminAuthenticated())) {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const body = z
     .object({
       name: z.string().min(1),
-      maxDownloadResolution: resolutionSchema.default("full"),
+      maxDownloadResolution: resolutionSchema.default("orig"),
     })
     .parse(await request.json());
   try {
