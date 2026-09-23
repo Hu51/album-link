@@ -31,8 +31,9 @@ Sample photos live in `fixtures/photos/`. Click **Scan now**, create a group, as
 
 ## Docker on a NAS
 
+Put the albums in a `photos` folder next to `docker-compose.yml`. Docker mounts that folder at `/app/photos`. The `PHOTOS_ROOT` value in `.env` is only for `npm run dev`.
+
 ```bash
-export PHOTOS_HOST_PATH=/path/to/your/Photos
 export ADMIN_PASSWORD='a-strong-password'
 export SESSION_SECRET='a-long-random-string'
 export APP_URL=https://photos.example.com
@@ -43,7 +44,7 @@ Volumes:
 
 | Mount | Purpose |
 | --- | --- |
-| `$PHOTOS_HOST_PATH` → `/photos:ro` | Originals, read-only |
+| `./photos` → `/app/photos:ro` | Originals, read-only |
 | `./data` | SQLite index, groups, people, tokens |
 | `./cache` | Thumbnails and resized downloads |
 

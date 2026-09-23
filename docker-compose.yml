@@ -6,7 +6,8 @@ services:
     ports:
       - "43123:3000"
     environment:
-      PHOTOS_ROOT: /photos
+      # Container path. The host .env PHOTOS_ROOT is for local npm only.
+      PHOTOS_ROOT: /app/photos
       DATA_DIR: /app/data
       CACHE_DIR: /app/cache
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
@@ -14,7 +15,7 @@ services:
       APP_URL: ${APP_URL:-http://127.0.0.1:43123}
       APP_NAME: "${APP_NAME:-album link}"
     volumes:
-      # Your NAS photo library — read-only, never written by the app
-      - ${PHOTOS_HOST_PATH:-./fixtures/photos}:/photos:ro
+      # NAS albums, read-only inside the app
+      - ${PHOTOS_HOST_PATH:-/volume1/photos/albums}:/app/photos:ro
       - ./data:/app/data
       - ./cache:/app/cache

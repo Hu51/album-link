@@ -27,10 +27,31 @@ export function AdminShell({
     setMessage(null);
     try {
       const res = await fetch("/api/admin/scan", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Scan failed");
+      const text = await res.text();
+      let json: {
+        error?: string;
+        code?: string;
+        stack?: string;
+        photosRoot?: string;
+        eventsFound?: number;
+        photosFound?: number;
+        eventsMissing?: number;
+        photosMissing?: number;
+      } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(text || `Scan failed (${res.status})`);
+      }
+      if (!res.ok) {
+        throw new Error(
+          [json.error, json.code, json.stack].filter(Boolean).join("\n") ||
+            text ||
+            `Scan failed (${res.status})`,
+        );
+      }
       setMessage(
-        `Scan done: ${json.eventsFound} events, ${json.photosFound} photos` +
+        `Scan done from ${json.photosRoot}: ${json.eventsFound} events, ${json.photosFound} photos` +
           (json.eventsMissing || json.photosMissing
             ? ` (${json.eventsMissing} events / ${json.photosMissing} photos missing from disk)`
             : ""),
@@ -87,7 +108,7 @@ export function AdminShell({
       </header>
 
       {message && (
-        <div className="rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
+        <div className="whitespace-pre-wrap rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
           {message}
         </div>
       )}

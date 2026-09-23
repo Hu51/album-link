@@ -5,6 +5,7 @@ import { getDb } from "./db";
 import { toPosix } from "./paths";
 
 export type ScanResult = {
+  photosRoot: string;
   eventsFound: number;
   photosFound: number;
   eventsMissing: number;
@@ -24,8 +25,13 @@ export function scanPhotos(): ScanResult {
   const now = new Date().toISOString();
   const seenEvents = new Set<string>();
   const seenPhotos = new Set<string>();
+  const seenInodes = new Set<string>();
   let eventsFound = 0;
   let photosFound = 0;
+  let directoriesSeen = 0;
+  let unreadable = 0;
+  let topLevel: string[] = [];
+  const otherFiles = new Map<string, number>();
 
   const upsertEvent = db.prepare(`
     INSERT INTO event_folders (relative_path, year, name, photo_count, cover_path, last_seen_at, missing)
@@ -51,26 +57,58 @@ export function scanPhotos(): ScanResult {
       missing = 0
   `);
 
-  if (!fs.existsSync(PHOTOS_ROOT)) {
-    fs.mkdirSync(PHOTOS_ROOT, { recursive: true });
+  try {
+    fs.accessSync(PHOTOS_ROOT, fs.constants.R_OK | fs.constants.X_OK);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "unreadable";
+    throw new Error(`Cannot read photos folder ${PHOTOS_ROOT}: ${detail}`);
   }
 
   // First path segment is only a group label (stored as year).
   // Any directory that contains images is an event, at any depth.
-  function indexDirectory(absDir: string, relDir: string) {
-    let entries: fs.Dirent[];
+  function statEntry(absPath: string): fs.Stats | null {
     try {
-      entries = fs.readdirSync(absDir, { withFileTypes: true });
+      const linked = fs.lstatSync(absPath);
+      if (!linked.isSymbolicLink()) return linked;
+      return fs.statSync(absPath);
     } catch {
+      return null;
+    }
+  }
+
+  function indexDirectory(absDir: string, relDir: string) {
+    const dirStat = statEntry(absDir);
+    if (!dirStat?.isDirectory()) return;
+    const inode = `${dirStat.dev}:${dirStat.ino}`;
+    if (seenInodes.has(inode)) return;
+    seenInodes.add(inode);
+    directoriesSeen += 1;
+
+    let names: string[];
+    try {
+      names = fs.readdirSync(absDir);
+    } catch {
+      unreadable += 1;
       return;
     }
+    if (!relDir) topLevel = [...names].sort();
 
-    const filenames = entries
-      .filter((entry) => entry.isFile() && isImageFile(entry.name))
-      .map((entry) => entry.name)
-      .sort();
+    const files: { name: string; stat: fs.Stats }[] = [];
+    const directories: string[] = [];
+    for (const name of names) {
+      const stat = statEntry(path.join(absDir, name));
+      if (!stat) continue;
+      if (stat.isDirectory()) directories.push(name);
+      else if (stat.isFile() && isImageFile(name)) files.push({ name, stat });
+      else if (stat.isFile()) {
+        const ext = path.extname(name).toLowerCase() || "(no extension)";
+        otherFiles.set(ext, (otherFiles.get(ext) ?? 0) + 1);
+      }
+    }
+    files.sort((a, b) => a.name.localeCompare(b.name));
+    directories.sort((a, b) => a.localeCompare(b));
 
-    if (filenames.length > 0) {
+    if (files.length > 0) {
       const segments = relDir ? relDir.split("/") : [];
       const group = segments[0] || path.basename(PHOTOS_ROOT) || "photos";
       const name = segments.at(-1) || group;
@@ -85,15 +123,14 @@ export function scanPhotos(): ScanResult {
         last_seen_at: now,
       });
 
-      for (const filename of filenames) {
-        const photoRel = childRelative(relDir, filename);
-        const stat = fs.statSync(path.join(absDir, filename));
+      for (const file of files) {
+        const photoRel = childRelative(relDir, file.name);
         upsertPhoto.run({
           relative_path: photoRel,
           event_path: relDir,
-          filename,
-          mtime_ms: Math.floor(stat.mtimeMs),
-          size_bytes: stat.size,
+          filename: file.name,
+          mtime_ms: Math.floor(file.stat.mtimeMs),
+          size_bytes: file.stat.size,
           last_seen_at: now,
         });
         seenPhotos.add(photoRel);
@@ -105,18 +142,13 @@ export function scanPhotos(): ScanResult {
         relative_path: relDir,
         year: group,
         name,
-        photo_count: filenames.length,
+        photo_count: files.length,
         cover_path: coverPath,
         last_seen_at: now,
       });
       seenEvents.add(relDir);
       eventsFound += 1;
     }
-
-    const directories = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
 
     for (const directory of directories) {
       indexDirectory(
@@ -139,6 +171,22 @@ export function scanPhotos(): ScanResult {
   const apply = db.transaction(() => {
     indexDirectory(PHOTOS_ROOT, "");
 
+    if (eventsFound === 0 && photosFound === 0) {
+      const extras: string[] = [];
+      if (directoriesSeen) extras.push(`${directoriesSeen} folders`);
+      if (unreadable) extras.push(`${unreadable} unreadable`);
+      const kinds = [...otherFiles.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([ext, count]) => `${ext} ${count}`);
+      if (kinds.length) extras.push(`other files: ${kinds.join(", ")}`);
+      const detail = extras.length ? ` (${extras.join("; ")})` : "";
+      const listed = topLevel.slice(0, 30).join(", ") || "(none)";
+      throw new Error(
+        `No images in ${PHOTOS_ROOT}. Folders here: ${listed}${detail}`,
+      );
+    }
+
     for (const row of db
       .prepare(`SELECT relative_path FROM event_folders WHERE missing = 0`)
       .all() as { relative_path: string }[]) {
@@ -160,5 +208,5 @@ export function scanPhotos(): ScanResult {
 
   apply();
 
-  return { eventsFound, photosFound, eventsMissing, photosMissing };
+  return { photosRoot: PHOTOS_ROOT, eventsFound, photosFound, eventsMissing, photosMissing };
 }
