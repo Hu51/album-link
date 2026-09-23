@@ -22,8 +22,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 RUN mkdir -p /app/data /app/cache && chown -R album:album /app
-USER album
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && command -v runuser
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]

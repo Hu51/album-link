@@ -6,6 +6,6 @@ export async function POST(request: Request) {
   if (!body.password || !verifyAdminPassword(body.password)) {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
-  await createAdminSession();
+  await createAdminSession(request);
   return NextResponse.json({ ok: true });
 }

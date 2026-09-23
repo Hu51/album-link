@@ -16,7 +16,13 @@ export function verifyAdminPassword(password: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-export async function createAdminSession() {
+function requestIsHttps(request: Request): boolean {
+  const forwarded = request.headers.get("x-forwarded-proto");
+  if (forwarded) return forwarded.split(",")[0]?.trim() === "https";
+  return new URL(request.url).protocol === "https:";
+}
+
+export async function createAdminSession(request: Request) {
   const exp = Date.now() + MAX_AGE_SECONDS * 1000;
   const payload = `admin:${exp}`;
   const value = `${payload}.${sign(payload)}`;
@@ -24,7 +30,8 @@ export async function createAdminSession() {
   jar.set(COOKIE_NAME, value, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Secure cookies are ignored by browsers on http:// LAN addresses.
+    secure: requestIsHttps(request),
     path: "/",
     maxAge: MAX_AGE_SECONDS,
   });
