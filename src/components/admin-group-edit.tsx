@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,7 +17,6 @@ import {
   ADMIN_REFRESH,
   copyShareUrl,
   EventCheckGrid,
-  groupEventSections,
   ResolutionSelect,
   ShareLinkField,
   type EventFolder,
@@ -33,8 +32,6 @@ export function AdminGroupEdit({ id }: { id: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [resolution, setResolution] = useState<Resolution>("orig");
-
-  const sections = useMemo(() => groupEventSections(events), [events]);
 
   async function refresh() {
     const [groupsRes, eventsRes] = await Promise.all([
@@ -199,27 +196,11 @@ export function AdminGroupEdit({ id }: { id: string }) {
               No event folders indexed yet. Click Scan now.
             </p>
           ) : (
-            <div className="space-y-3">
-              {sections.grouped.map((section) => (
-                <div key={section.year}>
-                  <h3 className="mb-1 text-xs font-medium tracking-wide text-stone-500 uppercase">
-                    {section.year}
-                  </h3>
-                  <EventCheckGrid
-                    events={section.items}
-                    selectedPaths={group.eventPaths}
-                    onChange={(next) => void saveEvents(next)}
-                  />
-                </div>
-              ))}
-              {sections.loose.length > 0 && (
-                <EventCheckGrid
-                  events={sections.loose}
-                  selectedPaths={group.eventPaths}
-                  onChange={(next) => void saveEvents(next)}
-                />
-              )}
-            </div>
+            <EventCheckGrid
+              events={events}
+              selectedPaths={group.eventPaths}
+              onChange={(next) => void saveEvents(next)}
+            />
           )}
         </CardContent>
       </Card>

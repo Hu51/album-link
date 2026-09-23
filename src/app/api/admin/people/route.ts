@@ -5,7 +5,9 @@ import {
   createPerson,
   deletePerson,
   listPeople,
+  listPersonEventPaths,
   rollPersonToken,
+  setPersonEvents,
   shareUrlFor,
   updatePerson,
 } from "@/lib/admin-data";
@@ -22,6 +24,7 @@ export async function GET() {
     max_download_resolution: p.max_download_resolution,
     shareUrl: shareUrlFor(p.share_token),
     groupIds: p.group_ids ? p.group_ids.split(",") : [],
+    eventPaths: listPersonEventPaths(p.id),
   }));
   return NextResponse.json({ people });
 }
@@ -62,6 +65,7 @@ export async function PATCH(request: Request) {
       name: z.string().min(1).optional(),
       maxDownloadResolution: resolutionSchema.optional(),
       groupIds: z.array(z.string()).optional(),
+      eventPaths: z.array(z.string()).optional(),
       rollToken: z.boolean().optional(),
     })
     .parse(await request.json());
@@ -82,6 +86,7 @@ export async function PATCH(request: Request) {
     groupIds:
       body.groupIds ?? (current.group_ids ? current.group_ids.split(",") : []),
   });
+  if (body.eventPaths) setPersonEvents(body.id, body.eventPaths);
 
   return NextResponse.json({ ok: true });
 }

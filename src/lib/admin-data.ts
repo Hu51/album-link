@@ -30,9 +30,32 @@ export function listPeople(): (PersonRow & { group_ids: string })[] {
 export function listEvents(): EventFolderRow[] {
   return getDb()
     .prepare(
-      `SELECT * FROM event_folders WHERE missing = 0 ORDER BY year DESC, name ASC`,
+      `SELECT * FROM event_folders WHERE missing = 0 ORDER BY relative_path COLLATE NOCASE ASC`,
     )
     .all() as EventFolderRow[];
+}
+
+export function listPersonEventPaths(personId: string): string[] {
+  return (
+    getDb()
+      .prepare(`SELECT event_path FROM person_events WHERE person_id = ?`)
+      .all(personId) as { event_path: string }[]
+  ).map((r) => r.event_path);
+}
+
+export function setPersonEvents(personId: string, eventPaths: string[]) {
+  const db = getDb();
+  const del = db.prepare(`DELETE FROM person_events WHERE person_id = ?`);
+  const ins = db.prepare(
+    `INSERT INTO person_events (person_id, event_path) VALUES (?, ?)`,
+  );
+  const tx = db.transaction(() => {
+    del.run(personId);
+    for (const eventPath of eventPaths) {
+      ins.run(personId, eventPath);
+    }
+  });
+  tx();
 }
 
 export function listGroupEventPaths(groupId: string): string[] {

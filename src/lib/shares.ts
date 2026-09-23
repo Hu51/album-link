@@ -26,7 +26,7 @@ export function resolveShareToken(token: string): ShareContext | null {
         FROM event_folders e
         INNER JOIN group_events ge ON ge.event_path = e.relative_path
         WHERE ge.group_id = ? AND e.missing = 0
-        ORDER BY e.year DESC, e.name ASC
+        ORDER BY e.relative_path COLLATE NOCASE ASC
       `,
       )
       .all(group.id) as EventFolderRow[];
@@ -51,13 +51,21 @@ export function resolveShareToken(token: string): ShareContext | null {
       `
       SELECT DISTINCT e.*
       FROM event_folders e
-      INNER JOIN group_events ge ON ge.event_path = e.relative_path
-      INNER JOIN person_groups pg ON pg.group_id = ge.group_id
-      WHERE pg.person_id = ? AND e.missing = 0
-      ORDER BY e.year DESC, e.name ASC
+      WHERE e.missing = 0 AND (
+        e.relative_path IN (
+          SELECT ge.event_path
+          FROM group_events ge
+          INNER JOIN person_groups pg ON pg.group_id = ge.group_id
+          WHERE pg.person_id = ?
+        )
+        OR e.relative_path IN (
+          SELECT pe.event_path FROM person_events pe WHERE pe.person_id = ?
+        )
+      )
+      ORDER BY e.relative_path COLLATE NOCASE ASC
     `,
     )
-    .all(person.id) as EventFolderRow[];
+    .all(person.id, person.id) as EventFolderRow[];
 
   return {
     kind: "person",

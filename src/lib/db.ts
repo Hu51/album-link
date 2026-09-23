@@ -118,8 +118,15 @@ function migrate(db: Database.Database) {
       missing INTEGER NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS person_events (
+      person_id TEXT NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+      event_path TEXT NOT NULL REFERENCES event_folders(relative_path) ON DELETE CASCADE,
+      PRIMARY KEY (person_id, event_path)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_photos_event ON photos(event_path);
     CREATE INDEX IF NOT EXISTS idx_group_events_event ON group_events(event_path);
+    CREATE INDEX IF NOT EXISTS idx_person_events_event ON person_events(event_path);
   `);
 
   const groupSql = (
@@ -233,6 +240,18 @@ function migrate(db: Database.Database) {
   }
 
   ensureShareToken(db);
+  ensurePersonEvents(db);
+}
+
+function ensurePersonEvents(db: Database.Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS person_events (
+      person_id TEXT NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+      event_path TEXT NOT NULL REFERENCES event_folders(relative_path) ON DELETE CASCADE,
+      PRIMARY KEY (person_id, event_path)
+    );
+    CREATE INDEX IF NOT EXISTS idx_person_events_event ON person_events(event_path);
+  `);
 }
 
 function ensureShareToken(db: Database.Database) {
@@ -249,6 +268,7 @@ function ensureShareToken(db: Database.Database) {
 export function getDb(): Database.Database {
   if (globalThis.__albumLinkDb) {
     ensureShareToken(globalThis.__albumLinkDb);
+    ensurePersonEvents(globalThis.__albumLinkDb);
     return globalThis.__albumLinkDb;
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -256,5 +276,6 @@ export function getDb(): Database.Database {
   migrate(db);
   globalThis.__albumLinkDb = db;
   ensureShareToken(db);
+  ensurePersonEvents(db);
   return db;
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,8 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   copyShareUrl,
+  EventCheckGrid,
   ResolutionSelect,
   ShareLinkField,
+  type EventFolder,
   type Group,
   type Person,
   type Resolution,
@@ -27,19 +29,25 @@ export function AdminPersonEdit({ id }: { id: string }) {
   const router = useRouter();
   const [person, setPerson] = useState<Person | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [events, setEvents] = useState<EventFolder[]>([]);
   const [missing, setMissing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [resolution, setResolution] = useState<Resolution>("orig");
 
   async function refresh() {
-    const [groupsRes, peopleRes] = await Promise.all([
+    const [groupsRes, peopleRes, eventsRes] = await Promise.all([
       fetch("/api/admin/groups"),
       fetch("/api/admin/people"),
+      fetch("/api/admin/events"),
     ]);
-    if (!groupsRes.ok || !peopleRes.ok) throw new Error("Failed to load");
+    if (!groupsRes.ok || !peopleRes.ok || !eventsRes.ok) {
+      throw new Error("Failed to load");
+    }
     const groupsJson = await groupsRes.json();
     const peopleJson = await peopleRes.json();
+    const eventsJson = await eventsRes.json();
+    setEvents(eventsJson.events);
     const found = (peopleJson.people as Person[]).find((item) => item.id === id);
     setGroups(groupsJson.groups);
     setPerson(found ?? null);
@@ -58,14 +66,22 @@ export function AdminPersonEdit({ id }: { id: string }) {
     name?: string;
     maxDownloadResolution?: Resolution;
     groupIds?: string[];
+    eventPaths?: string[];
   }) {
     if (!person) return;
     const next = {
       name: patch.name ?? name,
       maxDownloadResolution: patch.maxDownloadResolution ?? resolution,
       groupIds: patch.groupIds ?? person.groupIds,
+      eventPaths: patch.eventPaths ?? person.eventPaths,
     };
-    if (patch.groupIds) setPerson({ ...person, groupIds: patch.groupIds });
+    if (patch.groupIds || patch.eventPaths) {
+      setPerson({
+        ...person,
+        groupIds: next.groupIds,
+        eventPaths: next.eventPaths,
+      });
+    }
     const res = await fetch("/api/admin/people", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -97,6 +113,16 @@ export function AdminPersonEdit({ id }: { id: string }) {
     await fetch(`/api/admin/people?id=${id}`, { method: "DELETE" });
     router.push("/admin/people");
   }
+
+  const inheritedPaths = useMemo(() => {
+    if (!person) return [];
+    const paths = new Set<string>();
+    for (const group of groups) {
+      if (!person.groupIds.includes(group.id)) continue;
+      for (const path of group.eventPaths) paths.add(path);
+    }
+    return [...paths];
+  }, [groups, person]);
 
   if (missing) {
     return (
@@ -130,6 +156,7 @@ export function AdminPersonEdit({ id }: { id: string }) {
           <CardTitle>Edit person</CardTitle>
           <CardDescription>
             Name, download cap, groups, and the personal share link.
+            Folders below are extra access, including for people in no group.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -195,6 +222,30 @@ export function AdminPersonEdit({ id }: { id: string }) {
           <Button variant="outline" onClick={() => void remove()}>
             Delete person
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Folders</CardTitle>
+          <CardDescription>
+            Checked and locked folders come from their groups. Other folders
+            can be added here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {events.length === 0 ? (
+            <p className="text-sm text-stone-500">
+              No event folders indexed yet. Click Scan now.
+            </p>
+          ) : (
+            <EventCheckGrid
+              events={events}
+              selectedPaths={person.eventPaths}
+              lockedPaths={inheritedPaths}
+              onChange={(next) => void save({ eventPaths: next })}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
