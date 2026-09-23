@@ -1,0 +1,19 @@
+services:
+  album-link:
+    build: .
+    container_name: album-link
+    restart: unless-stopped
+    ports:
+      - "43123:3000"
+    environment:
+      PHOTOS_ROOT: /photos
+      DATA_DIR: /app/data
+      CACHE_DIR: /app/cache
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
+      APP_URL: ${APP_URL:-http://127.0.0.1:43123}
+    volumes:
+      # Your NAS photo library — read-only, never written by the app
+      - ${PHOTOS_HOST_PATH:-./fixtures/photos}:/photos:ro
+      - ./data:/app/data
+      - ./cache:/app/cache
