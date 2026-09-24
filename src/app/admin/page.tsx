@@ -8,7 +8,7 @@ import {
 
 export default function AdminHomePage() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-3">
       <Link href="/admin/groups">
         <Card className="h-full transition hover:border-stone-400">
           <CardHeader>
@@ -25,6 +25,16 @@ export default function AdminHomePage() {
             <CardTitle>People</CardTitle>
             <CardDescription>
               Personal links, each with their own groups and download cap.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </Link>
+      <Link href="/admin/folders">
+        <Card className="h-full transition hover:border-stone-400">
+          <CardHeader>
+            <CardTitle>Folders</CardTitle>
+            <CardDescription>
+              Each album, with the groups and people who can open it.
             </CardDescription>
           </CardHeader>
         </Card>

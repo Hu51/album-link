@@ -9,6 +9,7 @@ import { ADMIN_REFRESH } from "@/components/admin-ui";
 const links = [
   { href: "/admin/groups", label: "Groups" },
   { href: "/admin/people", label: "People" },
+  { href: "/admin/folders", label: "Folders" },
 ];
 
 export function AdminShell({

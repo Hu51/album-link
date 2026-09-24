@@ -190,6 +190,12 @@ export function deletePerson(id: string) {
   getDb().prepare(`DELETE FROM people WHERE id = ?`).run(id);
 }
 
+export function setEventNsfw(eventPath: string, nsfw: boolean) {
+  getDb()
+    .prepare(`UPDATE event_folders SET nsfw = ? WHERE relative_path = ?`)
+    .run(nsfw ? 1 : 0, eventPath);
+}
+
 export function listPhotosForEvent(eventPath: string) {
   return getDb()
     .prepare(

@@ -1,7 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 export type Resolution = "orig" | "2000px" | "1000px";
@@ -28,6 +35,7 @@ export type EventFolder = {
   year: string;
   name: string;
   photo_count: number;
+  nsfw: number;
 };
 
 export const ADMIN_REFRESH = "album-admin-refresh";
@@ -87,7 +95,7 @@ export function ShareLinkField({
   );
 }
 
-type FolderNode = {
+export type FolderNode = {
   name: string;
   path: string;
   event?: EventFolder;
@@ -105,7 +113,7 @@ function compareFolderName(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: "base" });
 }
 
-function folderTree(events: EventFolder[]): FolderNode[] {
+export function folderTree(events: EventFolder[]): FolderNode[] {
   const roots = new Map<string, BuildNode>();
 
   for (const event of events) {
@@ -139,15 +147,76 @@ function folderTree(events: EventFolder[]): FolderNode[] {
   return toSorted(roots);
 }
 
+export function FolderThumbs({ eventPath }: { eventPath: string }) {
+  const [photos, setPhotos] = useState<
+    { relative_path: string; filename: string }[] | null
+  >(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPhotos(null);
+    setError(null);
+    fetch(`/api/admin/photos?event=${encodeURIComponent(eventPath)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Could not load photos");
+        return res.json() as Promise<{
+          photos: { relative_path: string; filename: string }[];
+        }>;
+      })
+      .then((json) => {
+        if (!cancelled) setPhotos(json.photos);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load photos");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventPath]);
+
+  if (error) return <p className="text-sm text-stone-500">{error}</p>;
+  if (!photos) return <p className="text-sm text-stone-500">Loading photos…</p>;
+  if (photos.length === 0) {
+    return <p className="text-sm text-stone-500">No photos in this folder.</p>;
+  }
+
+  const shown = photos.slice(0, 80);
+
+  return (
+    <div className="max-h-[70vh] overflow-y-auto">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+        {shown.map((photo) => (
+          <img
+            key={photo.relative_path}
+            src={`/api/media/thumb?path=${encodeURIComponent(photo.relative_path)}`}
+            alt={photo.filename}
+            className="aspect-square w-full rounded-md bg-stone-100 object-cover"
+          />
+        ))}
+      </div>
+      {photos.length > shown.length && (
+        <p className="mt-3 text-xs text-stone-500">
+          Showing {shown.length} of {photos.length}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function FolderTree({
   nodes,
   selectedPaths,
   lockedPaths,
+  onPreview,
   onChange,
 }: {
   nodes: FolderNode[];
   selectedPaths: string[];
   lockedPaths: string[];
+  onPreview: (event: EventFolder) => void;
   onChange: (next: string[]) => void;
 }) {
   return (
@@ -161,32 +230,37 @@ function FolderTree({
         return (
           <div key={node.path}>
             {event ? (
-              <label
+              <div
                 className={`flex items-center gap-2 rounded-md border border-stone-200 px-2 py-1 text-sm ${
                   locked ? "bg-stone-50 text-stone-500" : "hover:bg-stone-50"
                 }`}
-                title={
-                  locked
-                    ? `Included by a group · ${event.photo_count} photos · ${event.relative_path || event.name}`
-                    : `${event.photo_count} photos · ${event.relative_path || event.name}`
-                }
               >
-                <Checkbox
-                  checked={checked}
-                  disabled={locked}
-                  onCheckedChange={(v) => {
-                    if (locked) return;
-                    const next = v
-                      ? [...selectedPaths, event.relative_path]
-                      : selectedPaths.filter((p) => p !== event.relative_path);
-                    onChange(next);
-                  }}
-                />
-                <span className="min-w-0 flex-1 break-all">{node.name}</span>
-                <span className="shrink-0 text-xs text-stone-400">
-                  {event.photo_count}
-                </span>
-              </label>
+                <label className="flex min-w-0 flex-1 items-center gap-2">
+                  <Checkbox
+                    checked={checked}
+                    disabled={locked}
+                    onCheckedChange={(v) => {
+                      if (locked) return;
+                      const next = v
+                        ? [...selectedPaths, event.relative_path]
+                        : selectedPaths.filter((p) => p !== event.relative_path);
+                      onChange(next);
+                    }}
+                  />
+                  <span className="min-w-0 flex-1 break-all">{node.name}</span>
+                  <span className="shrink-0 text-xs text-stone-400">
+                    {event.photo_count}
+                  </span>
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onPreview(event)}
+                >
+                  Photos
+                </Button>
+              </div>
             ) : (
               <div className="px-2 py-1 text-sm font-medium text-stone-500">
                 {node.name}
@@ -198,6 +272,7 @@ function FolderTree({
                   nodes={node.children}
                   selectedPaths={selectedPaths}
                   lockedPaths={lockedPaths}
+                  onPreview={onPreview}
                   onChange={onChange}
                 />
               </div>
@@ -220,13 +295,26 @@ export function EventCheckGrid({
   lockedPaths?: string[];
   onChange: (next: string[]) => void;
 }) {
+  const [preview, setPreview] = useState<EventFolder | null>(null);
+
   return (
-    <FolderTree
-      nodes={folderTree(events)}
-      selectedPaths={selectedPaths}
-      lockedPaths={lockedPaths}
-      onChange={onChange}
-    />
+    <>
+      <FolderTree
+        nodes={folderTree(events)}
+        selectedPaths={selectedPaths}
+        lockedPaths={lockedPaths}
+        onPreview={setPreview}
+        onChange={onChange}
+      />
+      <Dialog open={preview !== null} onOpenChange={(open) => !open && setPreview(null)}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{preview?.relative_path || preview?.name}</DialogTitle>
+          </DialogHeader>
+          {preview && <FolderThumbs eventPath={preview.relative_path} />}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

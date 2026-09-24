@@ -10,6 +10,7 @@ type EventFolder = {
   name: string;
   photo_count: number;
   cover_path: string | null;
+  nsfw: number;
 };
 
 type Photo = {
@@ -35,6 +36,8 @@ export function ShareGallery({
   events,
 }: Props) {
   const [activeEvent, setActiveEvent] = useState<EventFolder | null>(null);
+  const [pendingNsfw, setPendingNsfw] = useState<EventFolder | null>(null);
+  const [revealed, setRevealed] = useState<string[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -154,27 +157,42 @@ export function ShareGallery({
                 {year}
               </h2>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {yearEvents.map((event, index) => (
+                {yearEvents.map((event, index) => {
+                  const nsfw = event.nsfw === 1;
+                  const hidden = nsfw && !revealed.includes(event.relative_path);
+                  return (
                   <button
                     key={event.relative_path}
                     type="button"
-                    onClick={() => setActiveEvent(event)}
+                    onClick={() => {
+                      if (hidden) setPendingNsfw(event);
+                      else setActiveEvent(event);
+                    }}
                     className="group overflow-hidden rounded-xl border border-white/10 bg-[#171411] text-left transition duration-300 hover:-translate-y-0.5 hover:border-[#c4a574]/50"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
-                    <div className="aspect-[4/3] overflow-hidden bg-[#1e1a16]">
+                    <div className="relative aspect-[4/3] overflow-hidden bg-[#1e1a16]">
                       {event.cover_path ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={thumbUrl(event.cover_path)}
                           alt=""
-                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          className={`h-full w-full object-cover transition duration-500 ${
+                            nsfw
+                              ? "scale-125 blur-2xl"
+                              : "group-hover:scale-[1.03]"
+                          }`}
                           loading="lazy"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-sm text-[#8d8376]">
                           Empty album
                         </div>
+                      )}
+                      {nsfw && (
+                        <span className="absolute inset-0 flex items-center justify-center text-xs font-medium tracking-[0.2em] text-white/90">
+                          Sensitive album
+                        </span>
                       )}
                     </div>
                     <div className="px-4 py-3">
@@ -186,7 +204,8 @@ export function ShareGallery({
                       </p>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </section>
           ))}
@@ -225,6 +244,46 @@ export function ShareGallery({
           </section>
         )}
       </main>
+
+      {pendingNsfw && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-white/15 bg-[#171411] px-5 py-5 text-center">
+            <p className="text-xs uppercase tracking-[0.2em] text-[#c4a574]">
+              NSFW
+            </p>
+            <h2 className="mt-2 font-heading text-2xl">{pendingNsfw.name}</h2>
+            <p className="mt-2 text-sm text-[#b7aea0]">
+              This album is marked sensitive. Show the photos?
+            </p>
+            <div className="mt-5 flex justify-center gap-2">
+              <Button
+                variant="outline"
+                className="border-white/20 bg-transparent text-[#f4efe6] hover:bg-white/10"
+                onClick={() => setPendingNsfw(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setRevealed((paths) =>
+                    paths.includes(pendingNsfw.relative_path)
+                      ? paths
+                      : [...paths, pendingNsfw.relative_path],
+                  );
+                  setActiveEvent(pendingNsfw);
+                  setPendingNsfw(null);
+                }}
+              >
+                Show photos
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {lightboxIndex !== null && photos[lightboxIndex] && (
         <div

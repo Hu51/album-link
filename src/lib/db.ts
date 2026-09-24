@@ -28,6 +28,7 @@ export type EventFolderRow = {
   cover_path: string | null;
   last_seen_at: string;
   missing: number;
+  nsfw: number;
 };
 
 export type PhotoRow = {
@@ -99,7 +100,8 @@ function migrate(db: Database.Database) {
       photo_count INTEGER NOT NULL DEFAULT 0,
       cover_path TEXT,
       last_seen_at TEXT NOT NULL,
-      missing INTEGER NOT NULL DEFAULT 0
+      missing INTEGER NOT NULL DEFAULT 0,
+      nsfw INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS group_events (
@@ -241,6 +243,7 @@ function migrate(db: Database.Database) {
 
   ensureShareToken(db);
   ensurePersonEvents(db);
+  ensureEventNsfw(db);
 }
 
 function ensurePersonEvents(db: Database.Database) {
@@ -252,6 +255,15 @@ function ensurePersonEvents(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_person_events_event ON person_events(event_path);
   `);
+}
+
+function ensureEventNsfw(db: Database.Database) {
+  const columns = db.prepare(`PRAGMA table_info(event_folders)`).all() as {
+    name: string;
+  }[];
+  if (!columns.some((column) => column.name === "nsfw")) {
+    db.exec(`ALTER TABLE event_folders ADD COLUMN nsfw INTEGER NOT NULL DEFAULT 0`);
+  }
 }
 
 function ensureShareToken(db: Database.Database) {
@@ -269,6 +281,7 @@ export function getDb(): Database.Database {
   if (globalThis.__albumLinkDb) {
     ensureShareToken(globalThis.__albumLinkDb);
     ensurePersonEvents(globalThis.__albumLinkDb);
+    ensureEventNsfw(globalThis.__albumLinkDb);
     return globalThis.__albumLinkDb;
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -277,5 +290,6 @@ export function getDb(): Database.Database {
   globalThis.__albumLinkDb = db;
   ensureShareToken(db);
   ensurePersonEvents(db);
+  ensureEventNsfw(db);
   return db;
 }
