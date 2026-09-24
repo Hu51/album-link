@@ -9,6 +9,7 @@ Self-hosted gallery over your existing NAS photo folders. Guests open a secret l
 - Caps download size per link (`orig`, `2000px`, or `1000px`)
 - Optional **NSFW** blur + confirm before opening an album
 - Optional **watermark** on album links (uses `public/watermark.png`; group and person links stay clean)
+- **Album links expire after 1 month**; guests see the “valid until” date; Roll resets it
 - Admin UI for groups, people, and folders (access, NSFW, watermark, album links)
 
 ## Folder layout
@@ -28,7 +29,7 @@ Photos/
 
 The first path segment is only a group label (shown as the top folder in the gallery). Any directory that contains images is indexed. Nothing is imported or copied.
 
-On a share link, guests first see those top-level folders, then the albums inside the one they open.
+On a group or person share link, guests first see those top-level folders, then the albums inside the one they open. An album link opens that folder directly.
 
 ## Quick start (local)
 
@@ -42,7 +43,7 @@ Open [http://127.0.0.1:43123](http://127.0.0.1:43123). Admin: [/admin](http://12
 
 1. Click **Scan now**
 2. Create a **group** or **person**, assign albums, copy the share link  
-   — or open **Folders**, copy an album link (always capped at 1000px)
+   — or open **Folders**, copy an album link (always capped at 1000px, expires in 1 month)
 
 ## Admin
 
@@ -50,16 +51,19 @@ Open [http://127.0.0.1:43123](http://127.0.0.1:43123). Admin: [/admin](http://12
 | --- | --- |
 | **Groups** | One link for a chat; assign albums; max download size |
 | **People** | Personal link; group membership plus direct album access; own download cap |
-| **Folders** | Per-album link, NSFW, watermark, and who (groups/people) can open each album |
+| **Folders** | Per-album link (with expiry date), NSFW, watermark, and who (groups/people) can open each album |
 
 People inherit albums from their groups (shown checked and locked). Extra albums can be assigned directly on the person or from the Folders page.
 
 ## Sharing model
 
-- **Group link** — albums assigned to the group; download cap you choose; no watermark
-- **Person link** — union of group albums + direct albums; own download cap; no watermark
-- **Album link** — that folder only; downloads capped at **1000px**; optional watermark from `public/watermark.png`; **expires after 1 month** (Roll issues a new token and resets the expiry)
-- **Roll** replaces the token and kills the old URL without changing assignments
+- **Group link** — albums assigned to the group; download cap you choose; no watermark; no expiry
+- **Person link** — union of group albums + direct albums; own download cap; no watermark; no expiry
+- **Album link** — that folder only; downloads capped at **1000px**; optional watermark from `public/watermark.png`; **expires after 1 month**
+  - The public page shows **valid until** the expiry date
+  - After expiry the link is invalid (same as rolled or deleted)
+  - **Roll** issues a new token and starts a fresh month
+- **Roll** (groups/people/albums) replaces the token and kills the old URL without changing assignments
 
 Download caps (longest edge, never upscaled):
 
@@ -117,5 +121,6 @@ Rebuild when app code changes (`docker compose up -d --build`). Photos, DB, cach
 
 - Put this behind HTTPS (Caddy/Traefik/nginx/Cloudflare) when exposing outside your LAN.
 - Share links are unguessable tokens; roll them if leaked.
+- Album links auto-expire after one month; roll to renew.
 - Guests never get a NAS or UGOS account.
 - Watermark only applies to album links; replace `public/watermark.png` with your own file.
