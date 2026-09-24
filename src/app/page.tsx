@@ -16,14 +16,12 @@ export default function HomePage() {
           {APP_NAME}
         </p>
         <h1 className="mt-4 font-heading text-5xl leading-tight tracking-tight sm:text-6xl">
-          Share folders.
+          Share folders
           <br />
-          Keep the NAS private.
+          Keep it private
         </h1>
         <p className="mt-5 max-w-xl text-lg text-[#b7aea0]">
-          Point this app at your photo folders. The first level groups albums, and
-          any folder with images is indexed. Guests open a token link and only see
-          the albums you assigned — no UGOS login, no copied library.
+          {APP_NAME} is a simple and secure way to share folders with your friends and family. It's free and open source.
         </p>
         <div className="mt-10 flex flex-wrap gap-3">
           <Link

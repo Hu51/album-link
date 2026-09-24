@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -147,16 +147,21 @@ export function folderTree(events: EventFolder[]): FolderNode[] {
   return toSorted(roots);
 }
 
+const PREVIEW_PAGE = 50;
+
 export function FolderThumbs({ eventPath }: { eventPath: string }) {
   const [photos, setPhotos] = useState<
     { relative_path: string; filename: string }[] | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(PREVIEW_PAGE);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     setPhotos(null);
     setError(null);
+    setVisible(PREVIEW_PAGE);
     fetch(`/api/admin/photos?event=${encodeURIComponent(eventPath)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("Could not load photos");
@@ -183,23 +188,37 @@ export function FolderThumbs({ eventPath }: { eventPath: string }) {
     return <p className="text-sm text-stone-500">No photos in this folder.</p>;
   }
 
-  const shown = photos.slice(0, 80);
+  const shown = photos.slice(0, visible);
+  const hasMore = visible < photos.length;
+
+  function onScroll() {
+    const el = scrollRef.current;
+    if (!el || !hasMore) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
+      setVisible((n) => Math.min(n + PREVIEW_PAGE, photos.length));
+    }
+  }
 
   return (
-    <div className="max-h-[70vh] overflow-y-auto">
+    <div
+      ref={scrollRef}
+      className="max-h-[70vh] overflow-y-auto"
+      onScroll={onScroll}
+    >
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
         {shown.map((photo) => (
           <img
             key={photo.relative_path}
             src={`/api/media/thumb?path=${encodeURIComponent(photo.relative_path)}`}
             alt={photo.filename}
+            loading="lazy"
             className="aspect-square w-full rounded-md bg-stone-100 object-cover"
           />
         ))}
       </div>
-      {photos.length > shown.length && (
+      {hasMore && (
         <p className="mt-3 text-xs text-stone-500">
-          Showing {shown.length} of {photos.length}
+          {shown.length} of {photos.length}
         </p>
       )}
     </div>

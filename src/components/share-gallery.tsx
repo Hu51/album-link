@@ -43,7 +43,7 @@ export function ShareGallery({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const years = useMemo(() => {
+  const folders = useMemo(() => {
     const map = new Map<string, EventFolder[]>();
     for (const event of events) {
       const list = map.get(event.year) || [];
@@ -145,37 +145,34 @@ export function ShareGallery({
           <div className="rounded-xl border border-white/10 bg-white/5 px-6 py-16 text-center">
             <h2 className="font-heading text-2xl">No albums yet</h2>
             <p className="mt-2 text-[#b7aea0]">
-              This link has no event folders assigned.
+              This link has no visible folders assigned.
             </p>
           </div>
         )}
 
-        {!activeEvent &&
-          years.map(([year, yearEvents]) => (
-            <section key={year} className="mb-12">
-              <h2 className="mb-5 font-heading text-2xl text-[#efe6d8]">
-                {year}
-              </h2>
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {yearEvents.map((event, index) => {
-                  const nsfw = event.nsfw === 1;
-                  const hidden = nsfw && !revealed.includes(event.relative_path);
+        
+        {!activeEvent && (
+          <section className="grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+          {folders.map(([mainFolder, groupFolders]) => groupFolders.map((folder, index) => {
+                  const nsfw = folder.nsfw === 1;
+                  const hidden = nsfw && !revealed.includes(folder.relative_path);
+                  const folderPath = folder.relative_path.split("/").slice(0, -1).join("/");
                   return (
                   <button
-                    key={event.relative_path}
+                    key={folder.name}
                     type="button"
                     onClick={() => {
-                      if (hidden) setPendingNsfw(event);
-                      else setActiveEvent(event);
+                      if (hidden) setPendingNsfw(folder);
+                      else setActiveEvent(folder);
                     }}
                     className="group overflow-hidden rounded-xl border border-white/10 bg-[#171411] text-left transition duration-300 hover:-translate-y-0.5 hover:border-[#c4a574]/50"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
                     <div className="relative aspect-[4/3] overflow-hidden bg-[#1e1a16]">
-                      {event.cover_path ? (
+                      {folder.cover_path ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={thumbUrl(event.cover_path)}
+                          src={thumbUrl(folder.cover_path)}
                           alt=""
                           className={`h-full w-full object-cover transition duration-500 ${
                             nsfw
@@ -197,18 +194,21 @@ export function ShareGallery({
                     </div>
                     <div className="px-4 py-3">
                       <h3 className="font-medium text-[#f4efe6]">
-                        {event.name}
+                        {folderPath && (
+                          <span className="font-light text-[#9d9385]">{folderPath}/</span>
+                        )}
+                        {folder.name}
                       </h3>
                       <p className="mt-1 text-sm text-[#9d9385]">
-                        {event.photo_count} photos
+                        {folder.photo_count} photos
                       </p>
                     </div>
                   </button>
                   );
-                })}
-              </div>
-            </section>
-          ))}
+                })
+          )}
+          </section>
+        )}
 
         {activeEvent && (
           <section>
