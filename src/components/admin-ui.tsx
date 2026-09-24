@@ -38,6 +38,7 @@ export type EventFolder = {
   nsfw: number;
   watermark: number;
   shareUrl: string | null;
+  shareExpiresAt: string | null;
 };
 
 export const ADMIN_REFRESH = "album-admin-refresh";

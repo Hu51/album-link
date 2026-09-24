@@ -7,6 +7,13 @@ export function shareUrlFor(token: string | null): string | null {
   return token ? `${APP_URL}/share/${token}` : null;
 }
 
+/** Album links expire one calendar month after issue/roll. */
+export function folderShareExpiresAt(from = new Date()): string {
+  const expires = new Date(from.getTime());
+  expires.setMonth(expires.getMonth() + 1);
+  return expires.toISOString();
+}
+
 export function listGroups(): GroupRow[] {
   return getDb()
     .prepare(`SELECT * FROM groups ORDER BY name ASC`)
@@ -40,17 +47,35 @@ function ensureEventShareTokens() {
   const db = getDb();
   const missing = db
     .prepare(
-      `SELECT relative_path FROM event_folders WHERE share_token IS NULL OR token_hash IS NULL`,
+      `SELECT relative_path FROM event_folders
+       WHERE share_token IS NULL OR token_hash IS NULL OR share_expires_at IS NULL`,
     )
     .all() as { relative_path: string }[];
   if (missing.length === 0) return;
-  const update = db.prepare(
-    `UPDATE event_folders SET share_token = ?, token_hash = ? WHERE relative_path = ?`,
+  const insertToken = db.prepare(
+    `UPDATE event_folders SET share_token = ?, token_hash = ?, share_expires_at = ?
+     WHERE relative_path = ? AND (share_token IS NULL OR token_hash IS NULL)`,
+  );
+  const insertExpiry = db.prepare(
+    `UPDATE event_folders SET share_expires_at = ? WHERE relative_path = ? AND share_expires_at IS NULL`,
   );
   const tx = db.transaction(() => {
     for (const row of missing) {
-      const token = createShareToken();
-      update.run(token, hashToken(token), row.relative_path);
+      const expires = folderShareExpiresAt();
+      const current = db
+        .prepare(
+          `SELECT share_token, token_hash FROM event_folders WHERE relative_path = ?`,
+        )
+        .get(row.relative_path) as {
+        share_token: string | null;
+        token_hash: string | null;
+      };
+      if (!current.share_token || !current.token_hash) {
+        const token = createShareToken();
+        insertToken.run(token, hashToken(token), expires, row.relative_path);
+      } else {
+        insertExpiry.run(expires, row.relative_path);
+      }
     }
   });
   tx();
@@ -70,12 +95,14 @@ export function setEventWatermark(eventPath: string, watermark: boolean) {
 
 export function rollEventToken(eventPath: string) {
   const token = createShareToken();
+  const expiresAt = folderShareExpiresAt();
   getDb()
     .prepare(
-      `UPDATE event_folders SET share_token = ?, token_hash = ? WHERE relative_path = ?`,
+      `UPDATE event_folders SET share_token = ?, token_hash = ?, share_expires_at = ?
+       WHERE relative_path = ?`,
     )
-    .run(token, hashToken(token), eventPath);
-  return { token, shareUrl: `${APP_URL}/share/${token}` };
+    .run(token, hashToken(token), expiresAt, eventPath);
+  return { token, shareUrl: `${APP_URL}/share/${token}`, expiresAt };
 }
 
 export function listPersonEventPaths(personId: string): string[] {

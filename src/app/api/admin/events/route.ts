@@ -23,6 +23,7 @@ export async function GET() {
     nsfw: event.nsfw,
     watermark: event.watermark,
     shareUrl: shareUrlFor(event.share_token),
+    shareExpiresAt: event.share_expires_at,
   }));
   const groups = listGroups().map((g) => ({
     id: g.id,

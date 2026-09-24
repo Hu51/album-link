@@ -32,6 +32,7 @@ export type EventFolderRow = {
   watermark: number;
   share_token: string | null;
   token_hash: string | null;
+  share_expires_at: string | null;
 };
 
 export type PhotoRow = {
@@ -107,7 +108,8 @@ function migrate(db: Database.Database) {
       nsfw INTEGER NOT NULL DEFAULT 0,
       watermark INTEGER NOT NULL DEFAULT 0,
       share_token TEXT,
-      token_hash TEXT
+      token_hash TEXT,
+      share_expires_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS group_events (
@@ -287,6 +289,9 @@ function ensureEventShare(db: Database.Database) {
   }
   if (!columns.some((column) => column.name === "token_hash")) {
     db.exec(`ALTER TABLE event_folders ADD COLUMN token_hash TEXT`);
+  }
+  if (!columns.some((column) => column.name === "share_expires_at")) {
+    db.exec(`ALTER TABLE event_folders ADD COLUMN share_expires_at TEXT`);
   }
 }
 

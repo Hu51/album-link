@@ -8,6 +8,7 @@ export type ShareContext = {
   name: string;
   maxDownloadResolution: DownloadResolution;
   watermark: boolean;
+  shareExpiresAt: string | null;
   events: EventFolderRow[];
 };
 
@@ -38,6 +39,7 @@ export function resolveShareToken(token: string): ShareContext | null {
       name: group.name,
       maxDownloadResolution: group.max_download_resolution,
       watermark: false,
+      shareExpiresAt: null,
       events,
     };
   }
@@ -74,6 +76,7 @@ export function resolveShareToken(token: string): ShareContext | null {
       name: person.name,
       maxDownloadResolution: person.max_download_resolution,
       watermark: false,
+      shareExpiresAt: null,
       events,
     };
   }
@@ -86,12 +89,20 @@ export function resolveShareToken(token: string): ShareContext | null {
 
   if (!folder) return null;
 
+  if (
+    !folder.share_expires_at ||
+    Date.parse(folder.share_expires_at) <= Date.now()
+  ) {
+    return null;
+  }
+
   return {
     kind: "folder",
     id: folder.relative_path,
     name: folder.name,
     maxDownloadResolution: "1000px",
     watermark: folder.watermark === 1,
+    shareExpiresAt: folder.share_expires_at,
     events: [folder],
   };
 }

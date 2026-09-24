@@ -21,7 +21,7 @@ export default async function SharePage({
         </p>
         <h1 className="mt-3 font-heading text-3xl">Link not valid</h1>
         <p className="mt-3 max-w-md text-[#b7aea0]">
-          This share link was rolled, deleted, or never existed.
+          This share link was rolled, deleted, expired, or never existed.
         </p>
         <Link
           href="/"
@@ -39,6 +39,7 @@ export default async function SharePage({
       token={token}
       shareName={share.name}
       kind={share.kind}
+      shareExpiresAt={share.shareExpiresAt}
       maxDownloadResolution={share.maxDownloadResolution}
       events={share.events}
     />

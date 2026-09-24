@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -28,6 +28,7 @@ export function AdminFolders() {
   const [message, setMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<EventFolder | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [activeYear, setActiveYear] = useState<string | null>(null);
 
   async function refresh() {
     const [groupsRes, peopleRes, eventsRes] = await Promise.all([
@@ -62,6 +63,21 @@ export function AdminFolders() {
         group.eventPaths.includes(eventPath),
     );
   }
+
+  const yearNodes = useMemo(() => folderTree(events), [events]);
+  const activeNodes = useMemo(() => {
+    if (!activeYear) return [];
+    const node = yearNodes.find((item) => item.name === activeYear);
+    if (!node) return [];
+    if (node.event && node.children.length === 0) return [node];
+    return node.children.length > 0 ? node.children : [node];
+  }, [activeYear, yearNodes]);
+
+  useEffect(() => {
+    if (yearNodes.length === 1 && !activeYear) {
+      setActiveYear(yearNodes[0].name);
+    }
+  }, [yearNodes, activeYear]);
 
   async function toggleGroup(group: Group, eventPath: string, on: boolean) {
     const key = `group:${group.id}:${eventPath}`;
@@ -143,15 +159,22 @@ export function AdminFolders() {
       setMessage("Could not roll the album link.");
       return;
     }
-    const json = (await res.json()) as { shareUrl?: string };
+    const json = (await res.json()) as {
+      shareUrl?: string;
+      expiresAt?: string;
+    };
     setEvents((current) =>
       current.map((item) =>
         item.relative_path === event.relative_path
-          ? { ...item, shareUrl: json.shareUrl ?? item.shareUrl }
+          ? {
+              ...item,
+              shareUrl: json.shareUrl ?? item.shareUrl,
+              shareExpiresAt: json.expiresAt ?? item.shareExpiresAt,
+            }
           : item,
       ),
     );
-    setMessage("Album link rolled.");
+    setMessage("Album link rolled. Valid for one month.");
   }
 
   async function togglePerson(person: Person, eventPath: string, on: boolean) {
@@ -190,24 +213,68 @@ export function AdminFolders() {
         group to share the folder with everyone in it. A person checked through a
         group stays locked.
       </p>
-      <AccessTree
-        nodes={folderTree(events)}
-        groups={groups}
-        people={people}
-        saving={saving}
-        inherited={inherited}
-        onPreview={setPreview}
-        onToggleGroup={(group, eventPath, on) =>
-          void toggleGroup(group, eventPath, on)
-        }
-        onTogglePerson={(person, eventPath, on) =>
-          void togglePerson(person, eventPath, on)
-        }
-        onToggleNsfw={(event, on) => void toggleNsfw(event, on)}
-        onToggleWatermark={(event, on) => void toggleWatermark(event, on)}
-        onRollShare={(event) => void rollShare(event)}
-        onCopyShare={(event) => void copyShareUrl(event.shareUrl, setMessage)}
-      />
+      {!activeYear ? (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {yearNodes.map((node) => {
+            const albumCount =
+              node.children.length > 0
+                ? node.children.filter((child) => child.event).length ||
+                  node.children.length
+                : node.event
+                  ? 1
+                  : 0;
+            return (
+              <button
+                key={node.path}
+                type="button"
+                onClick={() => setActiveYear(node.name)}
+                className="rounded-lg border border-stone-200 bg-white/70 px-4 py-3 text-left hover:border-stone-400"
+              >
+                <span className="block text-sm font-medium text-stone-900">
+                  {node.name}
+                </span>
+                <span className="mt-1 block text-xs text-stone-500">
+                  {albumCount} album{albumCount === 1 ? "" : "s"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-heading text-xl text-stone-900">{activeYear}</h2>
+            {yearNodes.length > 1 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setActiveYear(null)}
+              >
+                All folders
+              </Button>
+            )}
+          </div>
+          <AccessTree
+            nodes={activeNodes}
+            groups={groups}
+            people={people}
+            saving={saving}
+            inherited={inherited}
+            onPreview={setPreview}
+            onToggleGroup={(group, eventPath, on) =>
+              void toggleGroup(group, eventPath, on)
+            }
+            onTogglePerson={(person, eventPath, on) =>
+              void togglePerson(person, eventPath, on)
+            }
+            onToggleNsfw={(event, on) => void toggleNsfw(event, on)}
+            onToggleWatermark={(event, on) => void toggleWatermark(event, on)}
+            onRollShare={(event) => void rollShare(event)}
+            onCopyShare={(event) => void copyShareUrl(event.shareUrl, setMessage)}
+          />
+        </div>
+      )}
       <Dialog
         open={preview !== null}
         onOpenChange={(open) => !open && setPreview(null)}
@@ -375,7 +442,11 @@ function FolderAccess({
           onRoll={() => onRollShare(event)}
         />
         <p className="mt-1 text-xs text-stone-400">
-          Album link · max download 1000px
+          Album link · max download 1000px · valid 1 month
+          {event.shareExpiresAt
+            ? ` (until ${new Date(event.shareExpiresAt).toLocaleDateString()})`
+            : ""}
+          . Roll resets the expiry.
         </p>
       </div>
       <AccessRow label="Groups">

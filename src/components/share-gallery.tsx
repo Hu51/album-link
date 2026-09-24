@@ -22,6 +22,7 @@ type Props = {
   appName: string;
   token: string;
   shareName: string;
+  shareExpiresAt: string | null;
   kind: "group" | "person" | "folder";
   maxDownloadResolution: "orig" | "2000px" | "1000px";
   events: EventFolder[];
@@ -31,10 +32,12 @@ export function ShareGallery({
   appName,
   token,
   shareName,
+  shareExpiresAt,
   kind,
   maxDownloadResolution,
   events,
 }: Props) {
+  const [activeYear, setActiveYear] = useState<string | null>(null);
   const [activeEvent, setActiveEvent] = useState<EventFolder | null>(() => {
     if (kind !== "folder" || events.length !== 1) return null;
     return events[0].nsfw === 1 ? null : events[0];
@@ -49,15 +52,39 @@ export function ShareGallery({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const folders = useMemo(() => {
+  const yearGroups = useMemo(() => {
     const map = new Map<string, EventFolder[]>();
     for (const event of events) {
       const list = map.get(event.year) || [];
       list.push(event);
       map.set(event.year, list);
     }
-    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+    return Array.from(map.entries())
+      .map(([year, yearEvents]) => ({
+        year,
+        events: yearEvents,
+        photoCount: yearEvents.reduce((sum, event) => sum + event.photo_count, 0),
+        coverPath:
+          yearEvents.find((event) => event.cover_path && event.nsfw !== 1)
+            ?.cover_path ||
+          yearEvents.find((event) => event.cover_path)?.cover_path ||
+          null,
+        hasNsfw: yearEvents.some((event) => event.nsfw === 1),
+      }))
+      .sort((a, b) => a.year.localeCompare(b.year, undefined, { sensitivity: "base" }));
   }, [events]);
+
+  const yearAlbums = useMemo(() => {
+    if (!activeYear) return [];
+    return yearGroups.find((group) => group.year === activeYear)?.events ?? [];
+  }, [activeYear, yearGroups]);
+
+  useEffect(() => {
+    if (kind === "folder") return;
+    if (yearGroups.length === 1 && !activeYear) {
+      setActiveYear(yearGroups[0].year);
+    }
+  }, [kind, yearGroups, activeYear]);
 
   useEffect(() => {
     if (!activeEvent) return;
@@ -132,19 +159,34 @@ export function ShareGallery({
                   ? "Personal link"
                   : "Album link"}{" "}
               · downloads up to {maxDownloadResolution}
+              {shareExpiresAt && (
+                <>
+                  {" "}
+                  · valid until{" "}
+                  {new Date(shareExpiresAt).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </>
+              )}
             </p>
           </div>
-          {activeEvent && kind !== "folder" && (
+          {kind !== "folder" && (activeEvent || (activeYear && yearGroups.length > 1)) && (
             <Button
               variant="outline"
               className="border-white/20 bg-transparent text-[#f4efe6] hover:bg-white/10"
               onClick={() => {
-                setActiveEvent(null);
-                setPhotos([]);
-                setLightboxIndex(null);
+                if (activeEvent) {
+                  setActiveEvent(null);
+                  setPhotos([]);
+                  setLightboxIndex(null);
+                  return;
+                }
+                setActiveYear(null);
               }}
             >
-              All albums
+              {activeEvent ? "All albums" : "All folders"}
             </Button>
           )}
         </div>
@@ -160,16 +202,63 @@ export function ShareGallery({
           </div>
         )}
 
-        
-        {!activeEvent && (
-          <section className="grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-          {folders.map(([mainFolder, groupFolders]) => groupFolders.map((folder, index) => {
-                  const nsfw = folder.nsfw === 1;
-                  const hidden = nsfw && !revealed.includes(folder.relative_path);
-                  const folderPath = folder.relative_path.split("/").slice(0, -1).join("/");
-                  return (
+        {!activeEvent && kind !== "folder" && !activeYear && (
+          <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {yearGroups.map((group, index) => (
+              <button
+                key={group.year}
+                type="button"
+                onClick={() => setActiveYear(group.year)}
+                className="group overflow-hidden rounded-xl border border-white/10 bg-[#171411] text-left transition duration-300 hover:-translate-y-0.5 hover:border-[#c4a574]/50"
+                style={{ animationDelay: `${index * 40}ms` }}
+              >
+                <div className="relative aspect-square overflow-hidden bg-[#1e1a16]">
+                  {group.coverPath ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumbUrl(group.coverPath)}
+                      alt=""
+                      className={`h-full w-full object-cover transition duration-500 ${
+                        group.hasNsfw
+                          ? "scale-125 blur-2xl"
+                          : "group-hover:scale-[1.03]"
+                      }`}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-[#8d8376]">
+                      Empty folder
+                    </div>
+                  )}
+                </div>
+                <div className="px-3 py-2.5">
+                  <h3 className="truncate font-medium text-[#f4efe6]">
+                    {group.year}
+                  </h3>
+                  <p className="mt-0.5 text-sm text-[#9d9385]">
+                    {group.events.length}{" "}
+                    {group.events.length === 1 ? "album" : "albums"} ·{" "}
+                    {group.photoCount} photos
+                  </p>
+                </div>
+              </button>
+            ))}
+          </section>
+        )}
+
+        {!activeEvent && activeYear && (
+          <section>
+            <h2 className="mb-5 font-heading text-2xl text-[#efe6d8]">
+              {activeYear}
+            </h2>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {yearAlbums.map((folder, index) => {
+                const nsfw = folder.nsfw === 1;
+                const hidden =
+                  nsfw && !revealed.includes(folder.relative_path);
+                return (
                   <button
-                    key={folder.name}
+                    key={folder.relative_path}
                     type="button"
                     onClick={() => {
                       if (hidden) setPendingNsfw(folder);
@@ -178,7 +267,7 @@ export function ShareGallery({
                     className="group overflow-hidden rounded-xl border border-white/10 bg-[#171411] text-left transition duration-300 hover:-translate-y-0.5 hover:border-[#c4a574]/50"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
-                    <div className="relative aspect-[4/3] overflow-hidden bg-[#1e1a16]">
+                    <div className="relative aspect-square overflow-hidden bg-[#1e1a16]">
                       {folder.cover_path ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -202,21 +291,18 @@ export function ShareGallery({
                         </span>
                       )}
                     </div>
-                    <div className="px-4 py-3">
-                      <h3 className="font-medium text-[#f4efe6]">
-                        {folderPath && (
-                          <span className="font-light text-[#9d9385]">{folderPath}/</span>
-                        )}
+                    <div className="px-3 py-2.5">
+                      <h3 className="truncate font-medium text-[#f4efe6]">
                         {folder.name}
                       </h3>
-                      <p className="mt-1 text-sm text-[#9d9385]">
+                      <p className="mt-0.5 text-sm text-[#9d9385]">
                         {folder.photo_count} photos
                       </p>
                     </div>
                   </button>
-                  );
-                })
-          )}
+                );
+              })}
+            </div>
           </section>
         )}
 
