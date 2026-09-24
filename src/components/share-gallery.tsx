@@ -163,10 +163,11 @@ export function ShareGallery({
                 <>
                   {" "}
                   · valid until{" "}
-                  {new Date(shareExpiresAt).toLocaleDateString(undefined, {
+                  {new Date(shareExpiresAt).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
+                    timeZone: "UTC",
                   })}
                 </>
               )}
