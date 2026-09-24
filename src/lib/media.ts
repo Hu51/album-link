@@ -18,13 +18,19 @@ async function ensureCacheFile(
   ext: string,
   producer: () => Promise<Buffer>,
 ): Promise<{ filePath: string; buffer: Buffer }> {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const filePath = path.join(CACHE_DIR, `${key}.${ext}`);
-  if (fs.existsSync(filePath)) {
-    return { filePath, buffer: fs.readFileSync(filePath) };
+  fs.mkdirSync(/* turbopackIgnore: true */ CACHE_DIR, { recursive: true });
+  const filePath = path.join(
+    /* turbopackIgnore: true */ CACHE_DIR,
+    `${key}.${ext}`,
+  );
+  if (fs.existsSync(/* turbopackIgnore: true */ filePath)) {
+    return {
+      filePath,
+      buffer: fs.readFileSync(/* turbopackIgnore: true */ filePath),
+    };
   }
   const buffer = await producer();
-  fs.writeFileSync(filePath, buffer);
+  fs.writeFileSync(/* turbopackIgnore: true */ filePath, buffer);
   return { filePath, buffer };
 }
 
@@ -34,7 +40,9 @@ export async function getThumbnail(relativePath: string): Promise<{
 }> {
   const absolute = resolvePhotoPath(relativePath);
   assertReadableFile(absolute);
-  const mtime = Math.floor(fs.statSync(absolute).mtimeMs);
+  const mtime = Math.floor(
+    fs.statSync(/* turbopackIgnore: true */ absolute).mtimeMs,
+  );
   const key = cacheKey(["thumb", relativePath, String(mtime)]);
   const { buffer } = await ensureCacheFile(key, "jpg", async () =>
     sharp(absolute)
@@ -59,12 +67,14 @@ export async function getMediaFile(
   const absolute = resolvePhotoPath(relativePath);
   assertReadableFile(absolute);
   const filename = path.basename(absolute);
-  const mtime = Math.floor(fs.statSync(absolute).mtimeMs);
+  const mtime = Math.floor(
+    fs.statSync(/* turbopackIgnore: true */ absolute).mtimeMs,
+  );
   const maxEdge = RESOLUTION_MAX_EDGE[resolution];
 
   if (maxEdge === null) {
     return {
-      buffer: fs.readFileSync(absolute),
+      buffer: fs.readFileSync(/* turbopackIgnore: true */ absolute),
       contentType: contentTypeFor(filename),
       filename,
       disposition,
@@ -77,7 +87,7 @@ export async function getMediaFile(
     const meta = await image.metadata();
     const longest = Math.max(meta.width || 0, meta.height || 0);
     if (longest > 0 && longest <= maxEdge) {
-      return fs.readFileSync(absolute);
+      return fs.readFileSync(/* turbopackIgnore: true */ absolute);
     }
     return image
       .resize(maxEdge, maxEdge, { fit: "inside", withoutEnlargement: true })

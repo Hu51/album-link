@@ -189,13 +189,14 @@ export function FolderThumbs({ eventPath }: { eventPath: string }) {
   }
 
   const shown = photos.slice(0, visible);
-  const hasMore = visible < photos.length;
+  const total = photos.length;
+  const hasMore = visible < total;
 
   function onScroll() {
     const el = scrollRef.current;
     if (!el || !hasMore) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
-      setVisible((n) => Math.min(n + PREVIEW_PAGE, photos.length));
+      setVisible((n) => Math.min(n + PREVIEW_PAGE, total));
     }
   }
 
@@ -218,7 +219,7 @@ export function FolderThumbs({ eventPath }: { eventPath: string }) {
       </div>
       {hasMore && (
         <p className="mt-3 text-xs text-stone-500">
-          {shown.length} of {photos.length}
+          {shown.length} of {total}
         </p>
       )}
     </div>

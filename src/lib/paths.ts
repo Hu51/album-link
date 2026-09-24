@@ -13,7 +13,10 @@ export function resolvePhotoPath(relativePath: string): string {
 }
 
 export function assertReadableFile(absolutePath: string): void {
-  if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+  if (
+    !fs.existsSync(/* turbopackIgnore: true */ absolutePath) ||
+    !fs.statSync(/* turbopackIgnore: true */ absolutePath).isFile()
+  ) {
     throw new Error("File not found");
   }
 }
