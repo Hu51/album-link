@@ -16,21 +16,27 @@ export async function GET(request: Request) {
   }
 
   let resolution: DownloadResolution = "orig";
+  let watermark = false;
   const admin = await isAdminAuthenticated();
 
-  if (!admin) {
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (token) {
     const share = resolveShareToken(token);
     if (!share || !shareCanAccessPhoto(share, photoPath)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     resolution = share.maxDownloadResolution;
+    watermark = share.watermark;
+  } else if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const file = await getMediaFile(photoPath, resolution, disposition);
+    const file = await getMediaFile(
+      photoPath,
+      resolution,
+      disposition,
+      watermark,
+    );
     const headers = new Headers({
       "Content-Type": file.contentType,
       "Cache-Control": "private, max-age=3600",

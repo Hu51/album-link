@@ -11,8 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import {
   ADMIN_REFRESH,
+  copyShareUrl,
   FolderThumbs,
   folderTree,
+  ShareLinkField,
   type EventFolder,
   type FolderNode,
   type Group,
@@ -106,6 +108,52 @@ export function AdminFolders() {
     }
   }
 
+  async function toggleWatermark(event: EventFolder, on: boolean) {
+    const key = `wm:${event.relative_path}`;
+    setSaving(key);
+    setEvents((current) =>
+      current.map((item) =>
+        item.relative_path === event.relative_path
+          ? { ...item, watermark: on ? 1 : 0 }
+          : item,
+      ),
+    );
+    const res = await fetch("/api/admin/events", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: event.relative_path, watermark: on }),
+    });
+    setSaving(null);
+    if (!res.ok) {
+      setMessage("Could not update the watermark flag.");
+      await refresh();
+    }
+  }
+
+  async function rollShare(event: EventFolder) {
+    const key = `roll:${event.relative_path}`;
+    setSaving(key);
+    const res = await fetch("/api/admin/events", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: event.relative_path, rollToken: true }),
+    });
+    setSaving(null);
+    if (!res.ok) {
+      setMessage("Could not roll the album link.");
+      return;
+    }
+    const json = (await res.json()) as { shareUrl?: string };
+    setEvents((current) =>
+      current.map((item) =>
+        item.relative_path === event.relative_path
+          ? { ...item, shareUrl: json.shareUrl ?? item.shareUrl }
+          : item,
+      ),
+    );
+    setMessage("Album link rolled.");
+  }
+
   async function togglePerson(person: Person, eventPath: string, on: boolean) {
     const key = `person:${person.id}:${eventPath}`;
     const eventPaths = on
@@ -137,8 +185,10 @@ export function AdminFolders() {
         </div>
       )}
       <p className="text-sm text-stone-600">
-        Check a group to share the folder with everyone in it. A person checked
-        through a group stays locked. Other people can be added directly.
+        Each album has its own link (downloads capped at 1000px). Watermark only
+        applies to that album link — group and person links stay clean. Check a
+        group to share the folder with everyone in it. A person checked through a
+        group stays locked.
       </p>
       <AccessTree
         nodes={folderTree(events)}
@@ -154,6 +204,9 @@ export function AdminFolders() {
           void togglePerson(person, eventPath, on)
         }
         onToggleNsfw={(event, on) => void toggleNsfw(event, on)}
+        onToggleWatermark={(event, on) => void toggleWatermark(event, on)}
+        onRollShare={(event) => void rollShare(event)}
+        onCopyShare={(event) => void copyShareUrl(event.shareUrl, setMessage)}
       />
       <Dialog
         open={preview !== null}
@@ -182,6 +235,9 @@ function AccessTree({
   onToggleGroup,
   onTogglePerson,
   onToggleNsfw,
+  onToggleWatermark,
+  onRollShare,
+  onCopyShare,
 }: {
   nodes: FolderNode[];
   groups: Group[];
@@ -192,6 +248,9 @@ function AccessTree({
   onToggleGroup: (group: Group, eventPath: string, on: boolean) => void;
   onTogglePerson: (person: Person, eventPath: string, on: boolean) => void;
   onToggleNsfw: (event: EventFolder, on: boolean) => void;
+  onToggleWatermark: (event: EventFolder, on: boolean) => void;
+  onRollShare: (event: EventFolder) => void;
+  onCopyShare: (event: EventFolder) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -209,6 +268,9 @@ function AccessTree({
               onToggleGroup={onToggleGroup}
               onTogglePerson={onTogglePerson}
               onToggleNsfw={onToggleNsfw}
+              onToggleWatermark={onToggleWatermark}
+              onRollShare={onRollShare}
+              onCopyShare={onCopyShare}
             />
           ) : (
             <div className="px-2 py-1 text-sm font-medium text-stone-500">
@@ -227,6 +289,9 @@ function AccessTree({
                 onToggleGroup={onToggleGroup}
                 onTogglePerson={onTogglePerson}
                 onToggleNsfw={onToggleNsfw}
+                onToggleWatermark={onToggleWatermark}
+                onRollShare={onRollShare}
+                onCopyShare={onCopyShare}
               />
             </div>
           )}
@@ -247,6 +312,9 @@ function FolderAccess({
   onToggleGroup,
   onTogglePerson,
   onToggleNsfw,
+  onToggleWatermark,
+  onRollShare,
+  onCopyShare,
 }: {
   name: string;
   event: EventFolder;
@@ -258,12 +326,15 @@ function FolderAccess({
   onToggleGroup: (group: Group, eventPath: string, on: boolean) => void;
   onTogglePerson: (person: Person, eventPath: string, on: boolean) => void;
   onToggleNsfw: (event: EventFolder, on: boolean) => void;
+  onToggleWatermark: (event: EventFolder, on: boolean) => void;
+  onRollShare: (event: EventFolder) => void;
+  onCopyShare: (event: EventFolder) => void;
 }) {
   const path = event.relative_path;
 
   return (
     <div className="rounded-lg border border-stone-200 bg-white/70 px-3 py-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 flex-1 break-all text-sm font-medium text-stone-900">
           {name}
         </span>
@@ -278,6 +349,16 @@ function FolderAccess({
           />
           NSFW
         </label>
+        <label className="inline-flex shrink-0 items-center gap-1.5 text-sm text-stone-700">
+          <Checkbox
+            checked={event.watermark === 1}
+            disabled={saving === `wm:${path}`}
+            onCheckedChange={(value) =>
+              onToggleWatermark(event, Boolean(value))
+            }
+          />
+          Watermark
+        </label>
         <Button
           type="button"
           size="sm"
@@ -286,6 +367,16 @@ function FolderAccess({
         >
           Photos
         </Button>
+      </div>
+      <div className="mt-2">
+        <ShareLinkField
+          shareUrl={event.shareUrl}
+          onCopy={() => onCopyShare(event)}
+          onRoll={() => onRollShare(event)}
+        />
+        <p className="mt-1 text-xs text-stone-400">
+          Album link · max download 1000px
+        </p>
       </div>
       <AccessRow label="Groups">
         {groups.length === 0 && (

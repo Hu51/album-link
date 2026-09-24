@@ -28,11 +28,54 @@ export function listPeople(): (PersonRow & { group_ids: string })[] {
 }
 
 export function listEvents(): EventFolderRow[] {
+  ensureEventShareTokens();
   return getDb()
     .prepare(
       `SELECT * FROM event_folders WHERE missing = 0 ORDER BY relative_path COLLATE NOCASE ASC`,
     )
     .all() as EventFolderRow[];
+}
+
+function ensureEventShareTokens() {
+  const db = getDb();
+  const missing = db
+    .prepare(
+      `SELECT relative_path FROM event_folders WHERE share_token IS NULL OR token_hash IS NULL`,
+    )
+    .all() as { relative_path: string }[];
+  if (missing.length === 0) return;
+  const update = db.prepare(
+    `UPDATE event_folders SET share_token = ?, token_hash = ? WHERE relative_path = ?`,
+  );
+  const tx = db.transaction(() => {
+    for (const row of missing) {
+      const token = createShareToken();
+      update.run(token, hashToken(token), row.relative_path);
+    }
+  });
+  tx();
+}
+
+export function setEventNsfw(eventPath: string, nsfw: boolean) {
+  getDb()
+    .prepare(`UPDATE event_folders SET nsfw = ? WHERE relative_path = ?`)
+    .run(nsfw ? 1 : 0, eventPath);
+}
+
+export function setEventWatermark(eventPath: string, watermark: boolean) {
+  getDb()
+    .prepare(`UPDATE event_folders SET watermark = ? WHERE relative_path = ?`)
+    .run(watermark ? 1 : 0, eventPath);
+}
+
+export function rollEventToken(eventPath: string) {
+  const token = createShareToken();
+  getDb()
+    .prepare(
+      `UPDATE event_folders SET share_token = ?, token_hash = ? WHERE relative_path = ?`,
+    )
+    .run(token, hashToken(token), eventPath);
+  return { token, shareUrl: `${APP_URL}/share/${token}` };
 }
 
 export function listPersonEventPaths(personId: string): string[] {
@@ -188,12 +231,6 @@ export function rollPersonToken(id: string) {
 
 export function deletePerson(id: string) {
   getDb().prepare(`DELETE FROM people WHERE id = ?`).run(id);
-}
-
-export function setEventNsfw(eventPath: string, nsfw: boolean) {
-  getDb()
-    .prepare(`UPDATE event_folders SET nsfw = ? WHERE relative_path = ?`)
-    .run(nsfw ? 1 : 0, eventPath);
 }
 
 export function listPhotosForEvent(eventPath: string) {

@@ -12,19 +12,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing path" }, { status: 400 });
   }
 
+  let watermark = false;
   const admin = await isAdminAuthenticated();
-  if (!admin) {
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+
+  if (token) {
     const share = resolveShareToken(token);
     if (!share || !shareCanAccessPhoto(share, photoPath)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    watermark = share.watermark;
+  } else if (!admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const { buffer, contentType } = await getThumbnail(photoPath);
+    const { buffer, contentType } = await getThumbnail(photoPath, watermark);
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": contentType,

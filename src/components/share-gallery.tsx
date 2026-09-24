@@ -22,7 +22,7 @@ type Props = {
   appName: string;
   token: string;
   shareName: string;
-  kind: "group" | "person";
+  kind: "group" | "person" | "folder";
   maxDownloadResolution: "orig" | "2000px" | "1000px";
   events: EventFolder[];
 };
@@ -35,8 +35,14 @@ export function ShareGallery({
   maxDownloadResolution,
   events,
 }: Props) {
-  const [activeEvent, setActiveEvent] = useState<EventFolder | null>(null);
-  const [pendingNsfw, setPendingNsfw] = useState<EventFolder | null>(null);
+  const [activeEvent, setActiveEvent] = useState<EventFolder | null>(() => {
+    if (kind !== "folder" || events.length !== 1) return null;
+    return events[0].nsfw === 1 ? null : events[0];
+  });
+  const [pendingNsfw, setPendingNsfw] = useState<EventFolder | null>(() => {
+    if (kind !== "folder" || events.length !== 1) return null;
+    return events[0].nsfw === 1 ? events[0] : null;
+  });
   const [revealed, setRevealed] = useState<string[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
@@ -120,11 +126,15 @@ export function ShareGallery({
               {shareName}
             </h1>
             <p className="mt-2 text-sm text-[#b7aea0]">
-              {kind === "group" ? "Group link" : "Personal link"} · downloads up
-              to {maxDownloadResolution}
+              {kind === "group"
+                ? "Group link"
+                : kind === "person"
+                  ? "Personal link"
+                  : "Album link"}{" "}
+              · downloads up to {maxDownloadResolution}
             </p>
           </div>
-          {activeEvent && (
+          {activeEvent && kind !== "folder" && (
             <Button
               variant="outline"
               className="border-white/20 bg-transparent text-[#f4efe6] hover:bg-white/10"

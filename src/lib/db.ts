@@ -29,6 +29,9 @@ export type EventFolderRow = {
   last_seen_at: string;
   missing: number;
   nsfw: number;
+  watermark: number;
+  share_token: string | null;
+  token_hash: string | null;
 };
 
 export type PhotoRow = {
@@ -101,7 +104,10 @@ function migrate(db: Database.Database) {
       cover_path TEXT,
       last_seen_at TEXT NOT NULL,
       missing INTEGER NOT NULL DEFAULT 0,
-      nsfw INTEGER NOT NULL DEFAULT 0
+      nsfw INTEGER NOT NULL DEFAULT 0,
+      watermark INTEGER NOT NULL DEFAULT 0,
+      share_token TEXT,
+      token_hash TEXT
     );
 
     CREATE TABLE IF NOT EXISTS group_events (
@@ -244,6 +250,7 @@ function migrate(db: Database.Database) {
   ensureShareToken(db);
   ensurePersonEvents(db);
   ensureEventNsfw(db);
+  ensureEventShare(db);
 }
 
 function ensurePersonEvents(db: Database.Database) {
@@ -266,6 +273,23 @@ function ensureEventNsfw(db: Database.Database) {
   }
 }
 
+function ensureEventShare(db: Database.Database) {
+  const columns = db.prepare(`PRAGMA table_info(event_folders)`).all() as {
+    name: string;
+  }[];
+  if (!columns.some((column) => column.name === "watermark")) {
+    db.exec(
+      `ALTER TABLE event_folders ADD COLUMN watermark INTEGER NOT NULL DEFAULT 0`,
+    );
+  }
+  if (!columns.some((column) => column.name === "share_token")) {
+    db.exec(`ALTER TABLE event_folders ADD COLUMN share_token TEXT`);
+  }
+  if (!columns.some((column) => column.name === "token_hash")) {
+    db.exec(`ALTER TABLE event_folders ADD COLUMN token_hash TEXT`);
+  }
+}
+
 function ensureShareToken(db: Database.Database) {
   for (const table of ["groups", "people"] as const) {
     const columns = db.prepare(`PRAGMA table_info(${table})`).all() as {
@@ -282,6 +306,7 @@ export function getDb(): Database.Database {
     ensureShareToken(globalThis.__albumLinkDb);
     ensurePersonEvents(globalThis.__albumLinkDb);
     ensureEventNsfw(globalThis.__albumLinkDb);
+    ensureEventShare(globalThis.__albumLinkDb);
     return globalThis.__albumLinkDb;
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -291,5 +316,6 @@ export function getDb(): Database.Database {
   ensureShareToken(db);
   ensurePersonEvents(db);
   ensureEventNsfw(db);
+  ensureEventShare(db);
   return db;
 }

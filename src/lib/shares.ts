@@ -3,10 +3,11 @@ import { getDb, type EventFolderRow, type GroupRow, type PersonRow } from "./db"
 import type { DownloadResolution } from "./config";
 
 export type ShareContext = {
-  kind: "group" | "person";
+  kind: "group" | "person" | "folder";
   id: string;
   name: string;
   maxDownloadResolution: DownloadResolution;
+  watermark: boolean;
   events: EventFolderRow[];
 };
 
@@ -36,6 +37,7 @@ export function resolveShareToken(token: string): ShareContext | null {
       id: group.id,
       name: group.name,
       maxDownloadResolution: group.max_download_resolution,
+      watermark: false,
       events,
     };
   }
@@ -44,35 +46,53 @@ export function resolveShareToken(token: string): ShareContext | null {
     .prepare(`SELECT * FROM people WHERE token_hash = ?`)
     .get(tokenHash) as PersonRow | undefined;
 
-  if (!person) return null;
-
-  const events = db
-    .prepare(
-      `
-      SELECT DISTINCT e.*
-      FROM event_folders e
-      WHERE e.missing = 0 AND (
-        e.relative_path IN (
-          SELECT ge.event_path
-          FROM group_events ge
-          INNER JOIN person_groups pg ON pg.group_id = ge.group_id
-          WHERE pg.person_id = ?
+  if (person) {
+    const events = db
+      .prepare(
+        `
+        SELECT DISTINCT e.*
+        FROM event_folders e
+        WHERE e.missing = 0 AND (
+          e.relative_path IN (
+            SELECT ge.event_path
+            FROM group_events ge
+            INNER JOIN person_groups pg ON pg.group_id = ge.group_id
+            WHERE pg.person_id = ?
+          )
+          OR e.relative_path IN (
+            SELECT pe.event_path FROM person_events pe WHERE pe.person_id = ?
+          )
         )
-        OR e.relative_path IN (
-          SELECT pe.event_path FROM person_events pe WHERE pe.person_id = ?
-        )
+        ORDER BY e.relative_path COLLATE NOCASE ASC
+      `,
       )
-      ORDER BY e.relative_path COLLATE NOCASE ASC
-    `,
+      .all(person.id, person.id) as EventFolderRow[];
+
+    return {
+      kind: "person",
+      id: person.id,
+      name: person.name,
+      maxDownloadResolution: person.max_download_resolution,
+      watermark: false,
+      events,
+    };
+  }
+
+  const folder = db
+    .prepare(
+      `SELECT * FROM event_folders WHERE token_hash = ? AND missing = 0`,
     )
-    .all(person.id, person.id) as EventFolderRow[];
+    .get(tokenHash) as EventFolderRow | undefined;
+
+  if (!folder) return null;
 
   return {
-    kind: "person",
-    id: person.id,
-    name: person.name,
-    maxDownloadResolution: person.max_download_resolution,
-    events,
+    kind: "folder",
+    id: folder.relative_path,
+    name: folder.name,
+    maxDownloadResolution: "1000px",
+    watermark: folder.watermark === 1,
+    events: [folder],
   };
 }
 

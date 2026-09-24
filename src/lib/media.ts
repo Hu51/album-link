@@ -13,6 +13,42 @@ function cacheKey(parts: string[]): string {
   return createHash("sha1").update(parts.join("|")).digest("hex");
 }
 
+function watermarkPath(): string {
+  return path.join(
+    /* turbopackIgnore: true */ process.cwd(),
+    "public",
+    "watermark.png",
+  );
+}
+
+async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
+  const markPath = watermarkPath();
+  if (!fs.existsSync(/* turbopackIgnore: true */ markPath)) {
+    return imageBuffer;
+  }
+
+  const image = sharp(imageBuffer);
+  const meta = await image.metadata();
+  const width = meta.width || 0;
+  const height = meta.height || 0;
+  if (width < 32 || height < 32) return imageBuffer;
+
+  const markWidth = Math.max(48, Math.round(width * 0.28));
+  const mark = await sharp(/* turbopackIgnore: true */ markPath)
+    .resize({ width: markWidth, withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  const markMeta = await sharp(mark).metadata();
+  const markH = markMeta.height || markWidth;
+  const left = Math.max(0, Math.round((width - (markMeta.width || markWidth)) / 2));
+  const top = Math.max(0, Math.round((height - markH) / 2));
+
+  return image
+    .composite([{ input: mark, left, top, blend: "over" }])
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toBuffer();
+}
+
 async function ensureCacheFile(
   key: string,
   ext: string,
@@ -34,7 +70,10 @@ async function ensureCacheFile(
   return { filePath, buffer };
 }
 
-export async function getThumbnail(relativePath: string): Promise<{
+export async function getThumbnail(
+  relativePath: string,
+  watermark = false,
+): Promise<{
   buffer: Buffer;
   contentType: string;
 }> {
@@ -43,14 +82,20 @@ export async function getThumbnail(relativePath: string): Promise<{
   const mtime = Math.floor(
     fs.statSync(/* turbopackIgnore: true */ absolute).mtimeMs,
   );
-  const key = cacheKey(["thumb", relativePath, String(mtime)]);
-  const { buffer } = await ensureCacheFile(key, "jpg", async () =>
-    sharp(absolute)
+  const key = cacheKey([
+    "thumb",
+    relativePath,
+    String(mtime),
+    watermark ? "wm" : "plain",
+  ]);
+  const { buffer } = await ensureCacheFile(key, "jpg", async () => {
+    const resized = await sharp(absolute)
       .rotate()
       .resize(480, 480, { fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 78, mozjpeg: true })
-      .toBuffer(),
-  );
+      .toBuffer();
+    return watermark ? applyWatermark(resized) : resized;
+  });
   return { buffer, contentType: "image/jpeg" };
 }
 
@@ -58,6 +103,7 @@ export async function getMediaFile(
   relativePath: string,
   resolution: DownloadResolution,
   disposition: "inline" | "attachment",
+  watermark = false,
 ): Promise<{
   buffer: Buffer;
   contentType: string;
@@ -72,7 +118,7 @@ export async function getMediaFile(
   );
   const maxEdge = RESOLUTION_MAX_EDGE[resolution];
 
-  if (maxEdge === null) {
+  if (maxEdge === null && !watermark) {
     return {
       buffer: fs.readFileSync(/* turbopackIgnore: true */ absolute),
       contentType: contentTypeFor(filename),
@@ -81,24 +127,33 @@ export async function getMediaFile(
     };
   }
 
-  const key = cacheKey(["dl", relativePath, String(mtime), resolution]);
+  const key = cacheKey([
+    "dl",
+    relativePath,
+    String(mtime),
+    resolution,
+    watermark ? "wm" : "plain",
+  ]);
   const { buffer } = await ensureCacheFile(key, "jpg", async () => {
     const image = sharp(absolute).rotate();
     const meta = await image.metadata();
     const longest = Math.max(meta.width || 0, meta.height || 0);
-    if (longest > 0 && longest <= maxEdge) {
-      return fs.readFileSync(/* turbopackIgnore: true */ absolute);
+    let out: Buffer;
+    if (maxEdge === null || (longest > 0 && longest <= maxEdge)) {
+      out = await image.jpeg({ quality: 88, mozjpeg: true }).toBuffer();
+    } else {
+      out = await image
+        .resize(maxEdge, maxEdge, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 88, mozjpeg: true })
+        .toBuffer();
     }
-    return image
-      .resize(maxEdge, maxEdge, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 88, mozjpeg: true })
-      .toBuffer();
+    return watermark ? applyWatermark(out) : out;
   });
 
   const outName =
     resolution === "orig"
-      ? filename
-      : `${path.parse(filename).name}-${resolution}.jpg`;
+      ? `${path.parse(filename).name}${watermark ? "-wm" : ""}.jpg`
+      : `${path.parse(filename).name}-${resolution}${watermark ? "-wm" : ""}.jpg`;
 
   return {
     buffer,
