@@ -33,7 +33,7 @@ export function AdminPersonEdit({ id }: { id: string }) {
   const [missing, setMissing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [resolution, setResolution] = useState<Resolution>("orig");
+  const [resolution, setResolution] = useState<Resolution>("full");
 
   async function refresh() {
     const [groupsRes, peopleRes, eventsRes] = await Promise.all([

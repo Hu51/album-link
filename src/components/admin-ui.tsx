@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-export type Resolution = "orig" | "2000px" | "1000px";
+export type Resolution = "full" | "2000px" | "1000px";
 
 export type Group = {
   id: string;
@@ -56,7 +56,7 @@ export function ResolutionSelect({
       value={value}
       onChange={(e) => onChange(e.target.value as Resolution)}
     >
-      <option value="orig">orig (original file)</option>
+      <option value="full">full (original file)</option>
       <option value="2000px">2000px</option>
       <option value="1000px">1000px</option>
     </select>

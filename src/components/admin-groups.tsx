@@ -27,7 +27,7 @@ export function AdminGroups() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [resolution, setResolution] = useState<Resolution>("orig");
+  const [resolution, setResolution] = useState<Resolution>("full");
 
   async function refresh() {
     const res = await fetch("/api/admin/groups");

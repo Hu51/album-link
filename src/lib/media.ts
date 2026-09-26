@@ -151,7 +151,7 @@ export async function getMediaFile(
   });
 
   const outName =
-    resolution === "orig"
+    resolution === "full"
       ? `${path.parse(filename).name}${watermark ? "-wm" : ""}.jpg`
       : `${path.parse(filename).name}-${resolution}${watermark ? "-wm" : ""}.jpg`;
 

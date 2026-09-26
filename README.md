@@ -6,7 +6,7 @@ Self-hosted gallery over your existing NAS photo folders. Guests open a secret l
 
 - Indexes any folder that contains images (nested folders included)
 - Issues revocable **group**, **person**, and **per-album** share links
-- Caps download size per link (`orig`, `2000px`, or `1000px`)
+- Caps download size per link (`full`, `2000px`, or `1000px`)
 - Optional **NSFW** blur + confirm before opening an album
 - Optional **watermark** on album links (uses `public/watermark.png`; group and person links stay clean)
 - **Album links expire after 1 month**; guests see the “valid until” date; Roll resets it
@@ -69,7 +69,7 @@ Download caps (longest edge, never upscaled):
 
 - `1000px` ≤ 1000px  
 - `2000px` ≤ 2000px  
-- `orig` original file  
+- `full` original file  
 
 ## Docker on a NAS
 

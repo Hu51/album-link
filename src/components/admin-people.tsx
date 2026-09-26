@@ -30,7 +30,7 @@ export function AdminPeople() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [resolution, setResolution] = useState<Resolution>("orig");
+  const [resolution, setResolution] = useState<Resolution>("full");
   const [groupIds, setGroupIds] = useState<string[]>([]);
 
   async function refresh() {

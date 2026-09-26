@@ -54,7 +54,7 @@ function mapLegacyResolution(value: string): DownloadResolution {
   switch (value) {
     case "full":
     case "orig":
-      return "orig";
+      return "full";
     case "2k":
     case "2000px":
       return "2000px";
@@ -62,7 +62,7 @@ function mapLegacyResolution(value: string): DownloadResolution {
     case "1000px":
       return "1000px";
     default:
-      return "orig";
+      return "full";
   }
 }
 
@@ -76,8 +76,8 @@ function migrate(db: Database.Database) {
       name TEXT NOT NULL UNIQUE,
       token_hash TEXT NOT NULL UNIQUE,
       share_token TEXT,
-      max_download_resolution TEXT NOT NULL DEFAULT 'orig'
-        CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
+      max_download_resolution TEXT NOT NULL DEFAULT 'full'
+        CHECK (max_download_resolution IN ('full', '2000px', '1000px')),
       created_at TEXT NOT NULL
     );
 
@@ -86,8 +86,8 @@ function migrate(db: Database.Database) {
       name TEXT NOT NULL UNIQUE,
       token_hash TEXT NOT NULL UNIQUE,
       share_token TEXT,
-      max_download_resolution TEXT NOT NULL DEFAULT 'orig'
-        CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
+      max_download_resolution TEXT NOT NULL DEFAULT 'full'
+        CHECK (max_download_resolution IN ('full', '2000px', '1000px')),
       created_at TEXT NOT NULL
     );
 
@@ -139,120 +139,140 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_person_events_event ON person_events(event_path);
   `);
 
+  ensureShareToken(db);
+  ensurePersonEvents(db);
+  ensureEventNsfw(db);
+  ensureEventShare(db);
+  ensureFullResolution(db);
+}
+
+function ensureFullResolution(db: Database.Database) {
   const groupSql = (
     db
       .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'groups'`)
       .get() as { sql: string } | undefined
   )?.sql;
+  if (!groupSql || groupSql.includes("'full'")) return;
 
-  if (groupSql && !groupSql.includes("'orig'")) {
-    const groups = db
-      .prepare(`SELECT id, name, token_hash, max_download_resolution, created_at FROM groups`)
-      .all() as {
-      id: string;
-      name: string;
-      token_hash: string;
-      max_download_resolution: string;
-      created_at: string;
-    }[];
-    const people = db
-      .prepare(`SELECT id, name, token_hash, max_download_resolution, created_at FROM people`)
-      .all() as {
-      id: string;
-      name: string;
-      token_hash: string;
-      max_download_resolution: string;
-      created_at: string;
-    }[];
-    const personGroups = db
-      .prepare(`SELECT person_id, group_id FROM person_groups`)
-      .all() as { person_id: string; group_id: string }[];
-    const groupEvents = db
-      .prepare(`SELECT group_id, event_path FROM group_events`)
-      .all() as { group_id: string; event_path: string }[];
+  const groupColumns = db.prepare(`PRAGMA table_info(groups)`).all() as {
+    name: string;
+  }[];
+  const hasShareToken = groupColumns.some((c) => c.name === "share_token");
+  const groups = db
+    .prepare(
+      hasShareToken
+        ? `SELECT id, name, token_hash, share_token, max_download_resolution, created_at FROM groups`
+        : `SELECT id, name, token_hash, NULL AS share_token, max_download_resolution, created_at FROM groups`,
+    )
+    .all() as {
+    id: string;
+    name: string;
+    token_hash: string;
+    share_token: string | null;
+    max_download_resolution: string;
+    created_at: string;
+  }[];
+  const people = db
+    .prepare(
+      hasShareToken
+        ? `SELECT id, name, token_hash, share_token, max_download_resolution, created_at FROM people`
+        : `SELECT id, name, token_hash, NULL AS share_token, max_download_resolution, created_at FROM people`,
+    )
+    .all() as {
+    id: string;
+    name: string;
+    token_hash: string;
+    share_token: string | null;
+    max_download_resolution: string;
+    created_at: string;
+  }[];
+  const personGroups = db
+    .prepare(`SELECT person_id, group_id FROM person_groups`)
+    .all() as { person_id: string; group_id: string }[];
+  const groupEvents = db
+    .prepare(`SELECT group_id, event_path FROM group_events`)
+    .all() as { group_id: string; event_path: string }[];
 
-    db.exec(`PRAGMA foreign_keys = OFF;`);
-    db.exec(`
-      DROP TABLE IF EXISTS person_groups;
-      DROP TABLE IF EXISTS group_events;
-      DROP TABLE IF EXISTS groups;
-      DROP TABLE IF EXISTS people;
-    `);
-    db.exec(`
-      CREATE TABLE groups (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE,
-        token_hash TEXT NOT NULL UNIQUE,
-        share_token TEXT,
-        max_download_resolution TEXT NOT NULL DEFAULT 'orig'
-          CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE people (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE,
-        token_hash TEXT NOT NULL UNIQUE,
-        share_token TEXT,
-        max_download_resolution TEXT NOT NULL DEFAULT 'orig'
-          CHECK (max_download_resolution IN ('orig', '2000px', '1000px')),
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE person_groups (
-        person_id TEXT NOT NULL REFERENCES people(id) ON DELETE CASCADE,
-        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-        PRIMARY KEY (person_id, group_id)
-      );
-      CREATE TABLE group_events (
-        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-        event_path TEXT NOT NULL REFERENCES event_folders(relative_path) ON DELETE CASCADE,
-        PRIMARY KEY (group_id, event_path)
-      );
-    `);
+  db.exec(`PRAGMA foreign_keys = OFF;`);
+  db.exec(`
+    DROP TABLE IF EXISTS person_groups;
+    DROP TABLE IF EXISTS group_events;
+    DROP TABLE IF EXISTS groups;
+    DROP TABLE IF EXISTS people;
+  `);
+  db.exec(`
+    CREATE TABLE groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      token_hash TEXT NOT NULL UNIQUE,
+      share_token TEXT,
+      max_download_resolution TEXT NOT NULL DEFAULT 'full'
+        CHECK (max_download_resolution IN ('full', '2000px', '1000px')),
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE people (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      token_hash TEXT NOT NULL UNIQUE,
+      share_token TEXT,
+      max_download_resolution TEXT NOT NULL DEFAULT 'full'
+        CHECK (max_download_resolution IN ('full', '2000px', '1000px')),
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE person_groups (
+      person_id TEXT NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      PRIMARY KEY (person_id, group_id)
+    );
+    CREATE TABLE group_events (
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      event_path TEXT NOT NULL REFERENCES event_folders(relative_path) ON DELETE CASCADE,
+      PRIMARY KEY (group_id, event_path)
+    );
+  `);
 
-    const insertGroup = db.prepare(
-      `INSERT INTO groups (id, name, token_hash, max_download_resolution, created_at) VALUES (?, ?, ?, ?, ?)`,
-    );
-    const insertPerson = db.prepare(
-      `INSERT INTO people (id, name, token_hash, max_download_resolution, created_at) VALUES (?, ?, ?, ?, ?)`,
-    );
-    const insertPg = db.prepare(
-      `INSERT INTO person_groups (person_id, group_id) VALUES (?, ?)`,
-    );
-    const insertGe = db.prepare(
-      `INSERT INTO group_events (group_id, event_path) VALUES (?, ?)`,
-    );
+  const insertGroup = db.prepare(
+    `INSERT INTO groups (id, name, token_hash, share_token, max_download_resolution, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const insertPerson = db.prepare(
+    `INSERT INTO people (id, name, token_hash, share_token, max_download_resolution, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const insertPg = db.prepare(
+    `INSERT INTO person_groups (person_id, group_id) VALUES (?, ?)`,
+  );
+  const insertGe = db.prepare(
+    `INSERT INTO group_events (group_id, event_path) VALUES (?, ?)`,
+  );
 
-    for (const g of groups) {
-      insertGroup.run(
-        g.id,
-        g.name,
-        g.token_hash,
-        mapLegacyResolution(g.max_download_resolution),
-        g.created_at,
-      );
-    }
-    for (const p of people) {
-      insertPerson.run(
-        p.id,
-        p.name,
-        p.token_hash,
-        mapLegacyResolution(p.max_download_resolution),
-        p.created_at,
-      );
-    }
-    for (const row of personGroups) {
-      insertPg.run(row.person_id, row.group_id);
-    }
-    for (const row of groupEvents) {
-      insertGe.run(row.group_id, row.event_path);
-    }
-    db.exec(`PRAGMA foreign_keys = ON;`);
+  for (const g of groups) {
+    insertGroup.run(
+      g.id,
+      g.name,
+      g.token_hash,
+      g.share_token,
+      mapLegacyResolution(g.max_download_resolution),
+      g.created_at,
+    );
   }
-
-  ensureShareToken(db);
-  ensurePersonEvents(db);
-  ensureEventNsfw(db);
-  ensureEventShare(db);
+  for (const p of people) {
+    insertPerson.run(
+      p.id,
+      p.name,
+      p.token_hash,
+      p.share_token,
+      mapLegacyResolution(p.max_download_resolution),
+      p.created_at,
+    );
+  }
+  for (const row of personGroups) {
+    insertPg.run(row.person_id, row.group_id);
+  }
+  for (const row of groupEvents) {
+    insertGe.run(row.group_id, row.event_path);
+  }
+  db.exec(`PRAGMA foreign_keys = ON;`);
 }
 
 function ensurePersonEvents(db: Database.Database) {
@@ -312,6 +332,7 @@ export function getDb(): Database.Database {
     ensurePersonEvents(globalThis.__albumLinkDb);
     ensureEventNsfw(globalThis.__albumLinkDb);
     ensureEventShare(globalThis.__albumLinkDb);
+    ensureFullResolution(globalThis.__albumLinkDb);
     return globalThis.__albumLinkDb;
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -322,5 +343,6 @@ export function getDb(): Database.Database {
   ensurePersonEvents(db);
   ensureEventNsfw(db);
   ensureEventShare(db);
+  ensureFullResolution(db);
   return db;
 }

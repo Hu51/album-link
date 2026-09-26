@@ -26,10 +26,10 @@ export const APP_URL = process.env.APP_URL || "http://127.0.0.1:43123";
 
 export const APP_NAME = process.env.APP_NAME || "album link";
 
-export type DownloadResolution = "orig" | "2000px" | "1000px";
+export type DownloadResolution = "full" | "2000px" | "1000px";
 
 export const RESOLUTION_MAX_EDGE: Record<DownloadResolution, number | null> = {
-  orig: null,
+  full: null,
   "2000px": 2000,
   "1000px": 1000,
 };

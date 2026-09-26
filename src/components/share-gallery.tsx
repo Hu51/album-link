@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowUp, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type EventFolder = {
@@ -24,7 +24,7 @@ type Props = {
   shareName: string;
   shareExpiresAt: string | null;
   kind: "group" | "person" | "folder";
-  maxDownloadResolution: "orig" | "2000px" | "1000px";
+  maxDownloadResolution: "full" | "2000px" | "1000px";
   events: EventFolder[];
 };
 
@@ -63,7 +63,10 @@ export function ShareGallery({
       .map(([year, yearEvents]) => ({
         year,
         events: yearEvents,
-        photoCount: yearEvents.reduce((sum, event) => sum + event.photo_count, 0),
+        photoCount: yearEvents.reduce(
+          (sum, event) => sum + event.photo_count,
+          0,
+        ),
         coverPath:
           yearEvents.find((event) => event.cover_path && event.nsfw !== 1)
             ?.cover_path ||
@@ -71,7 +74,9 @@ export function ShareGallery({
           null,
         hasNsfw: yearEvents.some((event) => event.nsfw === 1),
       }))
-      .sort((a, b) => a.year.localeCompare(b.year, undefined, { sensitivity: "base" }));
+      .sort((a, b) =>
+        a.year.localeCompare(b.year, undefined, { sensitivity: "base" }),
+      );
   }, [events]);
 
   const yearAlbums = useMemo(() => {
@@ -149,9 +154,24 @@ export function ShareGallery({
             <p className="text-xs uppercase tracking-[0.28em] text-[#c4a574]">
               {appName}
             </p>
+            <h3 className="mt-2 font-heading tracking-tight">{shareName}</h3>
+
             <h1 className="mt-2 font-heading text-3xl tracking-tight sm:text-4xl">
-              {shareName}
+              {!activeEvent && activeYear && (
+                <>
+                  <span className="text-white text-2xl">/{activeYear}</span>
+                </>
+              )}
+              {activeEvent && (
+                <>
+                  <span className="text-white/50 text-lg">
+                    /{activeEvent.year}/
+                  </span>
+                  <span className="text-white text-2xl">{activeEvent.name}</span>
+                </>
+              )}
             </h1>
+
             <p className="mt-2 text-sm text-[#b7aea0]">
               {kind === "group"
                 ? "Group link"
@@ -159,6 +179,13 @@ export function ShareGallery({
                   ? "Personal link"
                   : "Album link"}{" "}
               · downloads up to {maxDownloadResolution}
+              {photos.length > 0 && (
+                <>
+                  {" "}
+                  ·{" "}
+                  {photos.length} photo
+                </>
+              )}
               {shareExpiresAt && (
                 <>
                   {" "}
@@ -173,23 +200,24 @@ export function ShareGallery({
               )}
             </p>
           </div>
-          {kind !== "folder" && (activeEvent || (activeYear && yearGroups.length > 1)) && (
-            <Button
-              variant="outline"
-              className="border-white/20 bg-transparent text-[#f4efe6] hover:bg-white/10"
-              onClick={() => {
-                if (activeEvent) {
-                  setActiveEvent(null);
-                  setPhotos([]);
-                  setLightboxIndex(null);
-                  return;
-                }
-                setActiveYear(null);
-              }}
-            >
-              {activeEvent ? "All albums" : "All folders"}
-            </Button>
-          )}
+          {kind !== "folder" &&
+            (activeEvent || (activeYear && yearGroups.length > 1)) && (
+              <Button
+                variant="outline"
+                className="border-white/20 bg-transparent text-[#f4efe6] hover:bg-white hover:text-black"
+                onClick={() => {
+                  if (activeEvent) {
+                    setActiveEvent(null);
+                    setPhotos([]);
+                    setLightboxIndex(null);
+                    return;
+                  }
+                  setActiveYear(null);
+                }}
+              >
+                &larr; Back to albums
+              </Button>
+            )}
         </div>
       </header>
 
@@ -249,14 +277,10 @@ export function ShareGallery({
 
         {!activeEvent && activeYear && (
           <section>
-            <h2 className="mb-5 font-heading text-2xl text-[#efe6d8]">
-              {activeYear}
-            </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {yearAlbums.map((folder, index) => {
                 const nsfw = folder.nsfw === 1;
-                const hidden =
-                  nsfw && !revealed.includes(folder.relative_path);
+                const hidden = nsfw && !revealed.includes(folder.relative_path);
                 return (
                   <button
                     key={folder.relative_path}
@@ -309,16 +333,29 @@ export function ShareGallery({
 
         {activeEvent && (
           <section>
-            <div className="mb-6">
-              <p className="text-sm text-[#9d9385]">{activeEvent.year}</p>
-              <h2 className="font-heading text-3xl">{activeEvent.name}</h2>
-            </div>
-            {loadingPhotos && (
-              <p className="text-[#b7aea0]">Loading photos…</p>
-            )}
+            {loadingPhotos && <p className="text-[#b7aea0]">Loading photos…</p>}
             {error && <p className="text-red-300">{error}</p>}
             {!loadingPhotos && photos.length === 0 && !error && (
               <p className="text-[#b7aea0]">No photos in this folder.</p>
+            )}
+
+            {!lightboxIndex && (
+            <>
+              <button
+                type="button"
+                className="text-sm text-[#9d9385]"
+                title="Scroll to top"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                style={{
+                  position: "fixed",
+                  bottom: 20,
+                  right: 20,
+                  zIndex: 1000,
+                }}
+              >
+                <ArrowUp className="h-6 w-6 text-xl text-white/70 hover:text-black hover:bg-white rounded-full hover:scale-110 transition-all duration-300" />
+              </button>
+            </>
             )}
             <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
               {photos.map((photo, index) => (
@@ -390,13 +427,16 @@ export function ShareGallery({
         >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <p className="truncate text-sm text-[#d8cfc1]">
-              {photos[lightboxIndex].filename}
+              <span className="text-white/50 text-lg">{activeEvent ? activeEvent.name : activeYear} | </span>
+              <span className="text-white text-lg">{photos[lightboxIndex].filename}</span>
+              <span className="text-white/50 "> | {lightboxIndex + 1} of{" "} {photos.length}</span>
             </p>
             <div className="flex shrink-0 gap-2">
               <a
                 href={fileUrl(photos[lightboxIndex].relative_path, true)}
                 className="inline-flex h-8 items-center rounded-lg border border-white/20 px-2.5 text-sm hover:bg-white hover:text-black"
               >
+                <Download className="h-4 w-4 mr-2" />
                 Download
               </a>
               <Button
@@ -404,6 +444,7 @@ export function ShareGallery({
                 className="border-white/20 bg-transparent text-white/70 hover:bg-white hover:text-black"
                 onClick={() => setLightboxIndex(null)}
               >
+                <X className="h-4 w-4 mr-2" />
                 Close
               </Button>
             </div>
@@ -420,9 +461,14 @@ export function ShareGallery({
                 type="button"
                 aria-label="Previous photo"
                 className="absolute top-1/2 left-3 z-10 flex h-[2.1rem] w-[2.1rem] -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white/70 opacity-60 hover:text-white shadow-lg hover:opacity-100 sm:left-5 sm:h-[2.4rem] sm:w-[2.4rem]"
-                onClick={() => setLightboxIndex((i) => (i === null ? null : i - 1))}
+                onClick={() =>
+                  setLightboxIndex((i) => (i === null ? null : i - 1))
+                }
               >
-                <ChevronLeft className="h-[1.2rem] w-[1.2rem] sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={4} />
+                <ChevronLeft
+                  className="h-[1.2rem] w-[1.2rem] sm:h-[1.35rem] sm:w-[1.35rem]"
+                  strokeWidth={4}
+                />
               </button>
             )}
             {lightboxIndex < photos.length - 1 && (
@@ -430,9 +476,14 @@ export function ShareGallery({
                 type="button"
                 aria-label="Next photo"
                 className="absolute top-1/2 right-3 z-10 flex h-[2.1rem] w-[2.1rem] -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/45 text-white/70 opacity-60 hover:text-white shadow-lg hover:opacity-100 sm:right-5 sm:h-[2.4rem] sm:w-[2.4rem]"
-                onClick={() => setLightboxIndex((i) => (i === null ? null : i + 1))}
+                onClick={() =>
+                  setLightboxIndex((i) => (i === null ? null : i + 1))
+                }
               >
-                <ChevronRight className="h-[1.2rem] w-[1.2rem] sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={4} />
+                <ChevronRight
+                  className="h-[1.2rem] w-[1.2rem] sm:h-[1.35rem] sm:w-[1.35rem]"
+                  strokeWidth={4}
+                />
               </button>
             )}
           </div>
